@@ -50,8 +50,9 @@ const (
 
 	healthyStatus = "healthy"
 
-	// chownImage is the busybox image pinned in examples/generic-app/compose.yaml.
-	chownImage = "busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec"
+	// chownImagePrefix starts the image line of the busybox service in
+	// examples/generic-app/compose.yaml, the single place that image is pinned.
+	chownImagePrefix = "image: busybox:"
 
 	// zeroTime is the StartedAt of a container that was created but never started.
 	zeroTime = "0001-01-01T00:00:00Z"
@@ -128,7 +129,7 @@ func (s *stack) writeAgeKey(data []byte) {
 // container that mounts the project dir.
 func (s *stack) chownAgeKey(owner string) {
 	s.t.Helper()
-	out, err := s.docker("run", "--rm", "--user", "0:0", "-v", s.dir+":/d", chownImage, "chown", owner, "/d/age.key")
+	out, err := s.docker("run", "--rm", "--user", "0:0", "-v", s.dir+":/d", chownImage(s.t), "chown", owner, "/d/age.key")
 	if err != nil && runtime.GOOS == "darwin" {
 		// Docker Desktop's file sharing refuses chown from a container; it
 		// presents bind mounts to containers regardless of host ownership.
@@ -430,4 +431,21 @@ func (s *stack) assertNoLeaks() {
 			s.t.Errorf("canary %d found in compose logs", i)
 		}
 	}
+}
+
+// chownImage returns the busybox image reference pinned (tag and digest) in
+// examples/generic-app/compose.yaml.
+func chownImage(t *testing.T) string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "..", "examples", genericAppExample, "compose.yaml"))
+	if err != nil {
+		t.Fatalf("read generic-app compose file: %v", err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if ref, ok := strings.CutPrefix(strings.TrimSpace(line), chownImagePrefix); ok {
+			return "busybox:" + ref
+		}
+	}
+	t.Fatal("no busybox image in the generic-app compose file")
+	return ""
 }
