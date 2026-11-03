@@ -19,7 +19,7 @@
       "description": "Tools in .tool-versions that Renovate's asdf manager does not support",
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)\\.tool-versions$/"],
-      "matchStrings": ["^gofumpt (?<currentValue>\\S+)"],
+      "matchStrings": ["(?:^|\\n)gofumpt (?<currentValue>\\S+)"],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "mvdan/gofumpt",
       "extractVersionTemplate": "^v(?<version>.+)$"
@@ -27,7 +27,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)\\.tool-versions$/"],
-      "matchStrings": ["^goreleaser (?<currentValue>\\S+)"],
+      "matchStrings": ["(?:^|\\n)goreleaser (?<currentValue>\\S+)"],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "goreleaser/goreleaser",
       "extractVersionTemplate": "^v(?<version>.+)$"
@@ -35,7 +35,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)\\.tool-versions$/"],
-      "matchStrings": ["^age (?<currentValue>\\S+)"],
+      "matchStrings": ["(?:^|\\n)age (?<currentValue>\\S+)"],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "FiloSottile/age",
       "extractVersionTemplate": "^v(?<version>.+)$"
@@ -43,7 +43,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)\\.tool-versions$/"],
-      "matchStrings": ["^syft (?<currentValue>\\S+)"],
+      "matchStrings": ["(?:^|\\n)syft (?<currentValue>\\S+)"],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "anchore/syft",
       "extractVersionTemplate": "^v(?<version>.+)$"
