@@ -1,0 +1,88 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices", ":semanticCommits"],
+  "dependencyDashboard": true,
+  "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
+  "schedule": ["before 6am on monday"],
+  "minimumReleaseAge": "3 days",
+  "platformAutomerge": true,
+  "asdf": {
+    "enabled": true
+  },
+  "vulnerabilityAlerts": {
+    "labels": ["security"],
+    "schedule": ["at any time"],
+    "minimumReleaseAge": null
+  },
+  "customManagers": [
+    {
+      "description": "Tools in .tool-versions that Renovate's asdf manager does not support",
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)\\.tool-versions$/"],
+      "matchStrings": ["^gofumpt (?<currentValue>\\S+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "mvdan/gofumpt",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)\\.tool-versions$/"],
+      "matchStrings": ["^goreleaser (?<currentValue>\\S+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "goreleaser/goreleaser",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)\\.tool-versions$/"],
+      "matchStrings": ["^age (?<currentValue>\\S+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "FiloSottile/age",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)\\.tool-versions$/"],
+      "matchStrings": ["^syft (?<currentValue>\\S+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "anchore/syft",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "description": "Versions annotated with '# renovate: datasource=... depName=...' in workflows and scripts",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/", "/^scripts/.+\\.sh$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*(?:-\\s+|[\\w-]+:\\s*|(?:readonly\\s+)?\\w+=)[\"']?(?<currentValue>v?\\d[\\w.-]*)[\"']?"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Docker Compose v2.20.0 is the deliberate minimum supported version in the integration matrix; never bump it",
+      "matchDepNames": ["docker/compose"],
+      "matchCurrentValue": "/^v2\\.20\\.0$/",
+      "enabled": false
+    },
+    {
+      "description": "Patch, minor, digest and pin updates merge on their own once required checks pass",
+      "matchUpdateTypes": ["patch", "minor", "digest", "pin", "pinDigest"],
+      "automerge": true
+    },
+    {
+      "description": "Major updates always get a manual review",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "Go toolchain: .tool-versions, go.mod directives and the Dockerfile builder image move together",
+      "matchDepNames": ["go", "golang"],
+      "groupName": "go toolchain"
+    },
+    {
+      "description": "All GitHub Actions updates in one PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    }
+  ]
+}
