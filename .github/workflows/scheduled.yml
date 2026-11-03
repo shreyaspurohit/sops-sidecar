@@ -1,0 +1,49 @@
+name: Scheduled
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GOTOOLCHAIN: local
+  # renovate: datasource=github-releases depName=asdf-vm/asdf extractVersion=^v(?<version>.+)$
+  ASDF_VERSION: 0.20.2
+
+jobs:
+  govulncheck:
+    name: govulncheck (main)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        with:
+          asdf_version: ${{ env.ASDF_VERSION }}
+      - name: govulncheck
+        run: go tool govulncheck ./...
+
+  image-scan:
+    name: trivy (latest published image)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        with:
+          asdf_version: ${{ env.ASDF_VERSION }}
+      - name: trivy scan
+        run: trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed ghcr.io/shreyaspurohit/sops-sidecar:latest

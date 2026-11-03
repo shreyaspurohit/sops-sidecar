@@ -1,0 +1,42 @@
+name: Renovate config
+
+on:
+  pull_request:
+    paths:
+      - renovate.json
+      - .github/workflows/renovate-config.yml
+  push:
+    branches: [main]
+    paths:
+      - renovate.json
+      - .github/workflows/renovate-config.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # renovate: datasource=github-releases depName=asdf-vm/asdf extractVersion=^v(?<version>.+)$
+  ASDF_VERSION: 0.20.2
+  # The one exact tool version allowed in this workflow: npx needs it pinned, and
+  # Renovate bumps it through the annotation below.
+  # renovate: datasource=npm depName=renovate
+  RENOVATE_VERSION: 44.206.3
+
+jobs:
+  validate:
+    name: validate renovate.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        with:
+          asdf_version: ${{ env.ASDF_VERSION }}
+      - name: renovate-config-validator
+        run: npx --yes --package "renovate@${RENOVATE_VERSION}" -- renovate-config-validator --strict renovate.json
