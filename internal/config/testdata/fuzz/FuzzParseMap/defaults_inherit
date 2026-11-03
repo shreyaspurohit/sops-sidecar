@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("defaults: {uid: 70, gid: 70, mode: '0440'}\nfiles:\n  - key: a\n  - {key: b, path: c, mode: 400}\n")

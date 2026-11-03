@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("files:\n  - {key: a, path: .sops-sidecar-ready}\n  - {key: b, mode: 1777}\n")

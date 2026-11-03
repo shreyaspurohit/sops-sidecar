@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("files:\n  - {key: a, path: ../../etc/passwd}\n")
