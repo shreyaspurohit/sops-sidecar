@@ -1,0 +1,63 @@
+# Postgres whose password lives in a SOPS file and reaches the container as a
+# file under /run/secrets, written by the sops-sidecar into a tmpfs volume.
+#
+# Setup: see secrets.sops.yaml.example, then `docker compose up -d`.
+#
+# SOPS_SIDECAR_IMAGE overrides the sidecar image (used by the integration
+# tests to run a locally built image); it defaults to the released major tag.
+#
+# Inputs are mounted as single files, and a single-file bind mount follows the
+# inode. After changing secrets.sops.yaml, rewrite it in place (as
+# `sops edit` and `sops encrypt -i` do), never replace it with a new file, then
+# run `docker compose kill -s HUP secrets` for the sidecar to reload it.
+#
+# Why the sidecar runs as root here: the map file chowns postgres_password to
+# the postgres user (uid 70 in the alpine image), and Docker gives added
+# capabilities (CHOWN, FOWNER) only to root processes. Every other capability
+# is dropped. See ../generic-app for a setup that needs no root and no caps.
+#
+# On host reboot Docker restarts containers but ignores depends_on, so both
+# services use restart: unless-stopped and db keeps retrying until its
+# secret file exists.
+
+services:
+  secrets:
+    image: ${SOPS_SIDECAR_IMAGE:-ghcr.io/shreyaspurohit/sops-sidecar:0}
+    user: "0:0"
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    volumes:
+      - ./age.key:/config/age.key:ro
+      - ./secrets.sops.yaml:/config/secrets.sops.yaml:ro
+      - ./secrets.map.yaml:/config/secrets.map.yaml:ro
+      - secrets:/secrets
+    healthcheck:
+      test: ["CMD", "/sops-sidecar", "health"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  db:
+    # Pinned by tag and digest; Renovate keeps both current.
+    image: postgres:18-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    volumes:
+      - secrets:/run/secrets:ro
+    depends_on:
+      secrets:
+        condition: service_healthy
+
+volumes:
+  secrets:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=1m,mode=0711"

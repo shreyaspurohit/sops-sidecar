@@ -1,0 +1,8 @@
+# The age private key must never be committed.
+age.key
+
+# In a real project you commit secrets.sops.yaml (it is encrypted). This
+# example ships no ciphertext, and an encrypted file made here would be
+# encrypted to your own throwaway key, so it is ignored to keep the repository
+# free of keys and ciphertext.
+secrets.sops.yaml

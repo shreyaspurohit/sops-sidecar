@@ -1,0 +1,75 @@
+# Any image that reads a secret from a *_FILE environment variable, with the
+# sidecar running as its default non-root user (uid 65532) and no added
+# capabilities.
+#
+# How this avoids root and chown: the tmpfs volume is created owned by uid/gid
+# 65532 (see uid= and gid= in `o:` below), so the sidecar can write to it, and
+# the sidecar leaves each file owned by itself (mode 0400). The app runs as the
+# same uid, so it can read the files. There is no secrets.map.yaml: every
+# top-level key of secrets.sops.yaml becomes /run/secrets/<key>. If your app
+# runs as a different uid, use ../postgres instead (root sidecar + CHOWN/FOWNER).
+#
+# Setup: see secrets.sops.yaml.example, then `docker compose up -d` and
+# `docker compose logs app`.
+#
+# SOPS_SIDECAR_IMAGE overrides the sidecar image (used by the integration
+# tests to run a locally built image); it defaults to the released major tag.
+#
+# Inputs are mounted as single files, and a single-file bind mount follows the
+# inode. After changing secrets.sops.yaml, rewrite it in place (as
+# `sops edit` and `sops encrypt -i` do), never replace it with a new file, then
+# run `docker compose kill -s HUP secrets` for the sidecar to reload it.
+#
+# On host reboot Docker restarts containers but ignores depends_on, so both
+# services use restart: unless-stopped and the app keeps retrying until its
+# secret file exists.
+
+services:
+  secrets:
+    image: ${SOPS_SIDECAR_IMAGE:-ghcr.io/shreyaspurohit/sops-sidecar:0}
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    volumes:
+      - ./age.key:/config/age.key:ro
+      - ./secrets.sops.yaml:/config/secrets.sops.yaml:ro
+      - secrets:/secrets
+    healthcheck:
+      test: ["CMD", "/sops-sidecar", "health"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  app:
+    # Pinned by tag and digest; Renovate keeps both current.
+    image: busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec
+    user: "65532:65532"
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    environment:
+      API_TOKEN_FILE: /run/secrets/api_token
+    # Proves the file is readable without printing its contents.
+    command:
+      - sh
+      - -c
+      - 'test -s "$$API_TOKEN_FILE" || exit 1; echo token loaded; exec sleep 86400'
+    volumes:
+      - secrets:/run/secrets:ro
+    depends_on:
+      secrets:
+        condition: service_healthy
+
+volumes:
+  secrets:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=1m,mode=0711,uid=65532,gid=65532"
