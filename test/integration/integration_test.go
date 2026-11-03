@@ -67,7 +67,7 @@ func TestWrongAgeKey(t *testing.T) {
 	s, recipient := newStack(t, postgresExample)
 	s.writeSOPS(recipient, passwordKey, s.newSecret())
 	wrongKey, _ := sopstest.NewIdentity(t)
-	s.writeInPlace("age.key", wrongKey)
+	s.writeAgeKey(wrongKey)
 
 	// `up` waits for a healthy sidecar, so it fails or is cut off by the timeout.
 	_, _ = s.compose(failUpTimeout, "up", "-d")

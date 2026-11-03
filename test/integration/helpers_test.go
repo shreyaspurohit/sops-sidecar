@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -48,7 +49,19 @@ const (
 	passwordPath = "/run/secrets/postgres_password"
 
 	healthyStatus = "healthy"
+
+	// chownImage is the busybox image pinned in examples/generic-app/compose.yaml.
+	chownImage = "busybox:1.37@sha256:a7dbc319b1438115a207e11930dc4bb3e643dcb3ec0bdd694bb36cd8fad289ec"
+
+	// zeroTime is the StartedAt of a container that was created but never started.
+	zeroTime = "0001-01-01T00:00:00Z"
 )
+
+// keyOwners maps each example to the uid:gid its sidecar runs as.
+var keyOwners = map[string]string{
+	postgresExample:   "0:0",
+	genericAppExample: "65532:65532",
+}
 
 // stack is one Compose project started from a copy of an example directory.
 type stack struct {
@@ -59,6 +72,8 @@ type stack struct {
 	project    string
 	overrides  []string
 	canaries   []string
+	// keyOwner is the uid:gid the example's sidecar runs as.
+	keyOwner string
 }
 
 // newStack copies examples/<example> into a temp dir, generates an age
@@ -76,6 +91,7 @@ func newStack(t *testing.T, example string) (s *stack, recipient string) {
 		image:      image,
 		dir:        t.TempDir(),
 		project:    "sstest-" + randomHex(t, 4),
+		keyOwner:   keyOwners[example],
 	}
 	copyExample(t, example, s.dir)
 	t.Cleanup(s.down)
@@ -86,10 +102,40 @@ func newStack(t *testing.T, example string) (s *stack, recipient string) {
 			s.canaries = append(s.canaries, line)
 		}
 	}
-	// 0644: a throwaway key, and the non-root sidecar of examples/generic-app
-	// (uid 65532) must be able to read it whoever owns the temp dir.
-	s.writeInPlace("age.key", keyFile)
+	s.writeAgeKey(keyFile)
 	return s, recipient
+}
+
+// writeAgeKey replaces age.key with data, mode 0400 and owned by the sidecar's
+// uid: with every capability dropped, not even root can read a key it does not
+// own. The chown runs in a throwaway container, so no sudo is needed. It must
+// be called before the stack starts.
+func (s *stack) writeAgeKey(data []byte) {
+	s.t.Helper()
+	path := filepath.Join(s.dir, "age.key")
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		s.t.Fatalf("remove age.key: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o400); err != nil {
+		s.t.Fatalf("write age.key: %v", err)
+	}
+	s.chownAgeKey(s.keyOwner)
+}
+
+// chownAgeKey chowns age.key to owner (uid:gid) as root in a throwaway
+// container that mounts the project dir.
+func (s *stack) chownAgeKey(owner string) {
+	s.t.Helper()
+	out, err := s.docker("run", "--rm", "--user", "0:0", "-v", s.dir+":/d", chownImage, "chown", owner, "/d/age.key")
+	if err != nil && runtime.GOOS == "darwin" {
+		// Docker Desktop's file sharing refuses chown from a container; it
+		// presents bind mounts to containers regardless of host ownership.
+		s.t.Logf("chown age.key to %s skipped on macOS: %v", owner, err)
+		return
+	}
+	if err != nil {
+		s.t.Fatalf("chown age.key to %s: %v\n%s", owner, err, s.redact(out))
+	}
 }
 
 // copyExample copies the regular files of examples/<name> into dst.
@@ -329,7 +375,7 @@ func (s *stack) up() {
 
 // assertFailsClosed checks that the sidecar failed and the db never started:
 // the sidecar exits non-zero, is never healthy during neverWindow, and db has
-// no running container.
+// no container or one that never started.
 func (s *stack) assertFailsClosed() {
 	s.t.Helper()
 	waitFor(s.t, "secrets to exit non-zero", func() bool {
@@ -341,10 +387,23 @@ func (s *stack) assertFailsClosed() {
 		if got := s.health(secretsService); got == healthyStatus {
 			s.t.Fatal("secrets became healthy")
 		}
-		if running := s.inspect(dbService, "{{.State.Running}}"); running == "true" {
-			s.t.Fatal("db is running")
-		}
 		time.Sleep(pollInterval)
+	}
+	s.assertDBNeverStarted()
+}
+
+// assertDBNeverStarted fails unless db has no container, or one that was
+// created but never started and never restarted.
+func (s *stack) assertDBNeverStarted() {
+	s.t.Helper()
+	if s.containerID(dbService) == "" {
+		return
+	}
+	if started := s.inspect(dbService, "{{.State.StartedAt}}"); started != zeroTime {
+		s.t.Fatalf("db was started at %s", started)
+	}
+	if restarts := s.inspect(dbService, "{{.RestartCount}}"); restarts != "0" {
+		s.t.Fatalf("db restart count is %s", restarts)
 	}
 }
 

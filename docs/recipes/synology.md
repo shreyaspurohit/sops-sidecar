@@ -16,7 +16,7 @@ The age key decrypts everything. Do not keep it in the project folder, which may
       - /volume1/<secrets-share>/age.key:/config/age.key:ro
 ```
 
-Exclude that shared folder from backups and from sharing.
+Set the file's owner to the sidecar's uid and its mode to 0400 (over SSH: `sudo chown 0:0 age.key && sudo chmod 0400 age.key` for the postgres example, `65532:65532` for generic-app). With all capabilities dropped the sidecar cannot read a key it does not own. Exclude that shared folder from backups and from sharing.
 
 ## Start the stack at boot
 

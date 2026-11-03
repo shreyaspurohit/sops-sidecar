@@ -3,6 +3,10 @@
 #
 # Setup: see secrets.sops.yaml.example, then `docker compose up -d`.
 #
+# With every capability but CHOWN and FOWNER dropped, even this root sidecar
+# cannot bypass file permissions, so age.key must be owned by uid 0 and
+# readable only by it: `sudo chown 0:0 age.key && sudo chmod 0400 age.key`.
+#
 # SOPS_SIDECAR_IMAGE overrides the sidecar image (used by the integration
 # tests to run a locally built image); it defaults to the released major tag.
 #
