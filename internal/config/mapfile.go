@@ -86,7 +86,7 @@ func ParseMap(data []byte) (Map, error) {
 	if len(raw.Files) == 0 {
 		return Map{}, errors.New("map file lists no files")
 	}
-	defaults, err := resolveSettings(raw.Defaults, settings{mode: writer.DefaultMode, owner: writer.Owner{UID: writer.KeepID, GID: writer.KeepID}})
+	defaults, err := resolveSettings(raw.Defaults, settings{mode: writer.DefaultMode, owner: writer.KeepOwner()})
 	if err != nil {
 		return Map{}, fmt.Errorf("defaults: %w", err)
 	}
@@ -220,7 +220,7 @@ func allKeys(secrets []decrypt.Secret) ([]mapEntry, error) {
 		if err != nil {
 			return nil, fmt.Errorf("key %q cannot be a file name: %w", s.Key, err)
 		}
-		entries = append(entries, mapEntry{key: s.Key, name: name, mode: writer.DefaultMode, owner: writer.Owner{UID: writer.KeepID, GID: writer.KeepID}})
+		entries = append(entries, mapEntry{key: s.Key, name: name, mode: writer.DefaultMode, owner: writer.KeepOwner()})
 	}
 	return entries, nil
 }

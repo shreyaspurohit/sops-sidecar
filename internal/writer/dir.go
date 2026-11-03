@@ -66,7 +66,7 @@ func (d *Dir) CheckTmpfs(mountsFile string) error {
 	if err != nil {
 		return fmt.Errorf("output dir %q: %w", d.path, err)
 	}
-	if fsType != "tmpfs" {
+	if fsType != tmpfsType {
 		return fmt.Errorf("output dir %q is on %s, not tmpfs", d.path, fsType)
 	}
 	return nil

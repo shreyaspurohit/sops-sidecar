@@ -94,6 +94,10 @@ func (m Mode) String() string { return fmt.Sprintf("%04o", uint32(m)) }
 // Owner is the uid and gid a file is chowned to. KeepID leaves an id unchanged.
 type Owner struct{ UID, GID int }
 
+// KeepOwner returns the owner that leaves both ids unchanged: the built-in
+// default, which needs no CHOWN capability.
+func KeepOwner() Owner { return Owner{UID: KeepID, GID: KeepID} }
+
 // File is one file to write into the output dir.
 type File struct {
 	Name  Name

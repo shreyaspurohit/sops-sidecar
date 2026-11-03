@@ -36,7 +36,7 @@ func (m Marker) Set() error {
 	err := m.dir.Write(writer.File{
 		Name:  m.name,
 		Mode:  MarkerMode,
-		Owner: writer.Owner{UID: writer.KeepID, GID: writer.KeepID},
+		Owner: writer.KeepOwner(),
 	})
 	if err != nil {
 		return fmt.Errorf("set ready marker: %w", err)

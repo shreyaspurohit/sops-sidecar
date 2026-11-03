@@ -108,6 +108,7 @@ func ParseMode(s string) (Mode, error)          // octal text: "0400" or "400" (
 func (m Mode) String() string                   // "0400"
 
 type Owner struct{ UID, GID int }               // KeepID leaves that id unchanged
+func KeepOwner() Owner                          // Owner{KeepID, KeepID}: the built-in default owner
 
 type File struct {
     Name  Name
@@ -160,6 +161,8 @@ func (v Value) String() string                  // "[REDACTED]"
 func (v Value) GoString() string                // "[REDACTED]"
 func (v Value) Format(f fmt.State, verb rune)   // writes "[REDACTED]" for every verb
 func (v Value) LogValue() slog.Value            // "[REDACTED]"
+func (v Value) MarshalText() ([]byte, error)    // "[REDACTED]" (JSON/text encoders would otherwise base64 the bytes)
+func (i Identities) Format(f fmt.State, verb rune) // "[REDACTED]" for every verb
 
 type Secret struct {
     Key   string
@@ -317,7 +320,9 @@ at the default path → zero `Map`; absent when `MapRequired` → error.
   Standard-library sentinels (`fs.ErrNotExist`) are checked with `errors.Is`.
 - Error text names keys, file names, and paths. It never contains a value, the
   age key file's contents, or text from parsers that may echo input
-  (age identity parsing errors are replaced, not wrapped).
+  (age identity parsing, sops store, and sops tree-decrypt errors are replaced
+  with fixed messages, not wrapped). Map file YAML errors are wrapped: the map
+  file holds no secrets, and its field/line messages are needed to fix it.
 - `cmd` prints a failing command's error once to stderr as a log line.
 
 ## Logging

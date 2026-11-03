@@ -10,6 +10,9 @@ import (
 // ProcMounts is the kernel's mount table.
 const ProcMounts = "/proc/mounts"
 
+// tmpfsType is the file system type the output dir must have.
+const tmpfsType = "tmpfs"
+
 // MountType returns the file system type of the mount whose mount point is
 // the longest path-prefix of dir, judged on whole path elements. dir must be
 // absolute and clean. When several mounts share a mount point the last one
