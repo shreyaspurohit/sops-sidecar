@@ -102,6 +102,13 @@
       "enabled": false
     },
     {
+      "description": "The examples reference this project's own image by major tag on purpose so users get fixes; never pin or bump it",
+      "matchDepNames": [
+        "ghcr.io/shreyaspurohit/sops-sidecar"
+      ],
+      "enabled": false
+    },
+    {
       "description": "go.mod tool directives (deadcode, govulncheck, staticcheck) are recorded as indirect requirements; Renovate skips indirect deps by default",
       "matchManagers": [
         "gomod"
