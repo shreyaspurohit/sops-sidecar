@@ -19,7 +19,7 @@ One line each: decision — reason. Newest sections at the bottom.
 - All CLI tools pinned in `.tool-versions` and installed with asdf 0.20.2 — single source of truth for laptop and CI.
 - `zizmor` has no asdf plugin → fallback 3: `uvx zizmor@<version>` with `uv` installed by asdf; version lives once in `scripts/zizmor.sh`, tracked by a Renovate `customManagers` regex.
 - `deadcode`, `govulncheck`, `staticcheck` → `tool` directives in `go.mod`, run with `go tool` — project-local and version-pinned.
-- `nodejs` in `.tool-versions` (26.13.0, current LTS) — needed only to run `renovate` and `renovate-config-validator` via `npx` for local verification.
+- `nodejs` in `.tool-versions` (24.x LTS; Renovate's engine range is `^24.11`, so 26 is not usable) — needed only to run `renovate` and `renovate-config-validator` via `npx` for local verification.
 - Trivy chosen over Grype for image scanning — single tool, asdf plugin exists, Renovate asdf manager supports it.
 
 ## Design
@@ -41,6 +41,20 @@ One line each: decision — reason. Newest sections at the bottom.
 - Postgres example uses the `postgres:*-alpine` image — uid/gid 70 in the map matches the alpine image's postgres user.
 - File writes go through `os.Root` — kernel-enforced confinement to the output dir, so symlinks and `..` can't escape even under TOCTOU races.
 - Built-in defaults are mode `0400` and owner "unchanged" (the sidecar's own uid/gid, no chown) — §3's `defaults: {uid: 0, gid: 0, …}` is map-file syntax; a built-in uid 0 would force a non-root sidecar to need `CHOWN` it can't have. A map file may set `defaults` explicitly.
+
+## Packaging and CI
+
+- `asdf-vm/actions/install@v4.0.1` input `asdf_version: 0.20.2` (no `v` prefix; the action builds `releases/tags/v<ver>` and downloads the Go-based release binary, so asdf v0.16+ works; `asdf_branch` clones the legacy bash asdf and is not used).
+- `ASDF_VERSION` is declared once per workflow file (env), each with a `# renovate:` annotation — workflows cannot share variables.
+- `syft` added to `.tool-versions` — GoReleaser needs it on PATH for SBOMs and runs it with a scrubbed env.
+- Distroless `static-debian13:nonroot` base — current distroless generation.
+- Dockerfile has a `prebuilt` target used by GoReleaser and a default `runtime` target that compiles from source — one Dockerfile, shared base pins.
+- `.dockerignore` excludes `.git`, so `docker build .` images report version `(devel)`; release images built by GoReleaser carry the tag version.
+- Integration job names use roles (`minimum`/`latest`) not versions — required-check names stay stable across Renovate bumps.
+- Extra `workflow-lint` CI job (actionlint, shellcheck, zizmor) — workflow validation runs on every PR.
+- Renovate re-enables only the three `go tool` modules among indirect gomod deps — avoids a PR per transitive sops dependency.
+- Release attests both `dist/checksums.txt` and the pushed image digest with `actions/attest-build-provenance`.
+- `renovate-config.yml` pins the renovate npm version once with a `# renovate:` annotation; validator runs without a filename (repo mode).
 
 ## Explicitly not doing
 
