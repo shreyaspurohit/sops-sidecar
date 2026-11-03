@@ -65,6 +65,12 @@
       "enabled": false
     },
     {
+      "description": "go.mod tool directives (deadcode, govulncheck, staticcheck) are recorded as indirect requirements; Renovate skips indirect deps by default",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "enabled": true
+    },
+    {
       "description": "Patch, minor, digest and pin updates merge on their own once required checks pass",
       "matchUpdateTypes": ["patch", "minor", "digest", "pin", "pinDigest"],
       "automerge": true
