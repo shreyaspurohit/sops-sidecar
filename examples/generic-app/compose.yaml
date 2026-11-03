@@ -9,6 +9,10 @@
 # top-level key of secrets.sops.yaml becomes /run/secrets/<key>. If your app
 # runs as a different uid, use ../postgres instead (root sidecar + CHOWN/FOWNER).
 #
+# The sidecar is not root, so age.key must be readable by uid 65532 (for
+# example `sudo chown 65532 age.key` keeping mode 0600, or `chmod 644` for a
+# throwaway key).
+#
 # Setup: see secrets.sops.yaml.example, then `docker compose up -d` and
 # `docker compose logs app`.
 #
