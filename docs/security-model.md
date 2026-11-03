@@ -14,14 +14,14 @@
 | Tampered input | The SOPS MAC is verified; a modified file is refused. |
 | Network exposure | Decryption is in-process with an age key. No KMS or network calls; run it with `network_mode: none`. |
 | Path tricks | Output goes through `os.Root`; file names are single path elements; names under the reserved `.sops-sidecar` prefix are rejected. Absolute paths, `..` and symlinks are refused. |
-| Torn or partial state | Writes are atomic (temp file, fsync, chmod/chown, rename). The ready marker is removed before a reload and rewritten after. |
+| Torn or partial state | Each file is replaced atomically (temp file, fsync, chmod/chown, rename), so a reader never sees a partial file. The ready marker is removed before a reload and rewritten after, so a reader that waits for the marker sees a complete set. |
 | Silent failure | It fails closed: any problem leaves the sidecar unhealthy, so dependents using `depends_on: condition: service_healthy` do not start. |
 
 ## What it does not protect
 
 - **Root on the host.** Root can read any container's memory, mounts and files.
 - **Anyone who can read the sidecar's `/proc` or memory, or `docker exec` into a container that mounts the volume.** Treat access to the Docker socket as access to the secrets.
-- **The age key file.** It decrypts everything. Protect it with host file permissions, keep it out of git and out of backups, and do not place it in a shared or backed-up project folder.
+- **The age key file.** It decrypts everything. Protect it with host file permissions: own it by the sidecar's uid (0 for the postgres example, 65532 for generic-app) with mode `0400`, since with all capabilities dropped not even root can read a bind-mounted key it does not own. Keep it out of git and out of backups, and do not place it in a shared or backed-up project folder.
 - **Swap.** If the host swaps tmpfs pages to disk, plaintext can reach disk. Disable swap or use encrypted swap if that matters to you.
 - **The consuming application.** Once a container reads a secret, what it does with it is up to that application.
 - **Compromised images and the supply chain** beyond what signatures give you. Released images are signed with cosign keyless signing; verify before use:
