@@ -370,3 +370,52 @@ func ExampleParseMode() {
 	fmt.Println(m)
 	// Output: 0640
 }
+
+func TestRemoveTempFiles(t *testing.T) {
+	d, path := openDir(t)
+	files := map[string]bool{ // name → expected to survive
+		writer.ReservedPrefix + "-tmp-0123456789abcdef": false,
+		writer.ReservedPrefix + "-tmp-":                 false,
+		writer.ReservedPrefix + "-ready":                true,
+		"secret":                                        true,
+	}
+	for name := range files {
+		if err := os.WriteFile(filepath.Join(path, name), []byte(canary), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := d.RemoveTempFiles(); err != nil {
+		t.Fatalf("RemoveTempFiles: %v", err)
+	}
+	for name, survives := range files {
+		_, err := os.Lstat(filepath.Join(path, name))
+		if exists := err == nil; exists != survives {
+			t.Errorf("%s: exists = %v, want %v", name, exists, survives)
+		}
+	}
+}
+
+func TestRemoveTempFilesErrors(t *testing.T) {
+	t.Run("closed dir", func(t *testing.T) {
+		d, err := writer.Open(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.RemoveTempFiles(); err == nil {
+			t.Fatal("RemoveTempFiles on a closed dir succeeded")
+		}
+	})
+	t.Run("temp name held by a non-empty directory", func(t *testing.T) {
+		d, path := openDir(t)
+		blocked := filepath.Join(path, writer.ReservedPrefix+"-tmp-dir")
+		if err := os.MkdirAll(filepath.Join(blocked, "inner"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.RemoveTempFiles(); err == nil {
+			t.Fatal("RemoveTempFiles succeeded on a non-empty directory")
+		}
+	})
+}

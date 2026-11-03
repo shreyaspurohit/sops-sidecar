@@ -13,35 +13,55 @@ import (
 
 // Environment variable names.
 const (
-	EnvSOPSFile      = "SOPS_FILE"
-	EnvAgeKeyFile    = "SOPS_AGE_KEY_FILE"
-	EnvAgeKey        = "SOPS_AGE_KEY" // refused if present, even when empty
-	EnvMapFile       = "SECRETS_MAP"
-	EnvOutputDir     = "OUTPUT_DIR"
+	// EnvSOPSFile names the SOPS file.
+	EnvSOPSFile = "SOPS_FILE"
+	// EnvAgeKeyFile names the age key file.
+	EnvAgeKeyFile = "SOPS_AGE_KEY_FILE"
+	// EnvAgeKey is refused if present, even when empty: an age key in an
+	// environment variable is visible through `docker inspect`.
+	EnvAgeKey = "SOPS_AGE_KEY"
+	// EnvMapFile names the map file; setting it makes the map file required.
+	EnvMapFile = "SECRETS_MAP"
+	// EnvOutputDir names the output dir.
+	EnvOutputDir = "OUTPUT_DIR"
+	// EnvAllowNonTmpfs disables the tmpfs check of the output dir (tests only).
 	EnvAllowNonTmpfs = "ALLOW_NON_TMPFS"
-	EnvWipeOnExit    = "WIPE_ON_EXIT"
-	EnvLogLevel      = "LOG_LEVEL"
+	// EnvWipeOnExit removes written files and the ready marker on shutdown.
+	EnvWipeOnExit = "WIPE_ON_EXIT"
+	// EnvLogLevel sets the log level: debug, info, warn, or error.
+	EnvLogLevel = "LOG_LEVEL"
 )
 
 // Defaults for settings the environment leaves unset or empty.
 const (
-	DefaultSOPSFile   = "/config/secrets.sops.yaml"
+	// DefaultSOPSFile is the SOPS file path when EnvSOPSFile is unset.
+	DefaultSOPSFile = "/config/secrets.sops.yaml"
+	// DefaultAgeKeyFile is the age key file path when EnvAgeKeyFile is unset.
 	DefaultAgeKeyFile = "/config/age.key"
-	DefaultMapFile    = "/config/secrets.map.yaml"
-	DefaultOutputDir  = "/secrets"
+	// DefaultMapFile is the optional map file path when EnvMapFile is unset.
+	DefaultMapFile = "/config/secrets.map.yaml"
+	// DefaultOutputDir is the output dir when EnvOutputDir is unset.
+	DefaultOutputDir = "/secrets"
 )
 
 // Config is the validated environment.
 type Config struct {
-	SOPSFile   string
+	// SOPSFile is the absolute path of the SOPS file.
+	SOPSFile string
+	// AgeKeyFile is the absolute path of the age key file.
 	AgeKeyFile string
-	MapFile    string
+	// MapFile is the absolute path of the map file.
+	MapFile string
 	// MapRequired is true when EnvMapFile is set: a missing map file is then an error.
-	MapRequired   bool
-	OutputDir     string
+	MapRequired bool
+	// OutputDir is the absolute path of the output dir.
+	OutputDir string
+	// AllowNonTmpfs skips the tmpfs check of the output dir.
 	AllowNonTmpfs bool
-	WipeOnExit    bool
-	LogLevel      slog.Level
+	// WipeOnExit removes written files and the ready marker on shutdown.
+	WipeOnExit bool
+	// LogLevel is the minimum level logged; values are never logged at any level.
+	LogLevel slog.Level
 }
 
 // FromEnv builds a Config from environment variables read through lookup.

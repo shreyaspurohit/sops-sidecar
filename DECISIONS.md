@@ -60,6 +60,10 @@ One line each: decision — reason. Newest sections at the bottom.
 
 - `deadcode` exception: the six redaction methods (`decrypt.Value.{String,GoString,Format,MarshalText,LogValue}`, `decrypt.Identities.Format`) are unreachable by design — they exist so a value or age identity can never be printed, logged, or JSON-encoded by mistake; `scripts/deadcode.sh` allows exactly these and fails on anything else.
 - The `shutting down` log has no `signal` attribute — `signal.NotifyContext` does not expose which signal fired, and capturing it would need an extra goroutine.
+- sops' own logrus loggers are discarded at startup (`decrypt.DisableSOPSLogs`) — they write outside our log level and can echo file content (e.g. an unencrypted comment); all failures surface through our own errors.
+- A panic inside sops' tree decryption (crafted `type:` metadata) is recovered and reported as invalid ciphertext — the pinned sops cipher panics before the MAC check; recovering at that single boundary keeps "return errors, don't panic".
+- Leftover `.sops-sidecar-tmp-*` files are removed at startup — a killed write can leave a plaintext temp file; names under the reserved prefix belong only to the sidecar. Files of keys removed while the sidecar was stopped are not swept (documented): the sidecar never deletes files it did not write in the current run.
+- uid/gid are limited to `0..4294967294` (`writer.MaxID`) — larger values would truncate or hit chown's "unchanged" sentinel.
 - Errors are wrapped once, by the package that knows the context (`writer`, `health`); `cmd` passes them through without re-prefixing.
 
 ## Explicitly not doing
@@ -68,4 +72,8 @@ One line each: decision — reason. Newest sections at the bottom.
 
 ## Review findings not adopted
 
-(filled in during review rounds)
+- Round 1, Codex #7 (sops `audit` package `init` reads `/etc/sops/audit.yaml` and may connect to PostgreSQL) — the package is linked transitively by sops and cannot be excluded without forking; in the published image that file cannot exist unless an operator deliberately mounts it, and the examples run with `network_mode: none`. Documented in docs/security-model.md.
+- Round 1, Claude #10 (Lstat-then-Remove race in `writer.Dir.Remove`) — all operations are confined by `os.Root`; the worst case is removing an empty directory someone swapped in inside the output dir, which needs write access to the tmpfs that already implies full control of the secrets.
+- Round 1, Claude #11 (scheduled trivy job fails until the first image is published) — expected; it starts passing after `v0.1.0` is released and the GHCR package is public (listed in the maintainer steps).
+- Round 1, Claude #12 (README says "Tested on Compose v2.20+, including … Synology … Portainer" without a test on those appliances) — the wording is the spec's own (§3); the claim rests on testing the Compose version those builds ship (v2.20.0).
+- Round 1, Codex #6 (part) — non-regular input files are now refused, but input reads are not made cancellable via context: with only regular files accepted, a read cannot block indefinitely.

@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/getsops/sops/v3/aes"
 	sopsage "github.com/getsops/sops/v3/age"
 	"github.com/getsops/sops/v3/config"
+	"github.com/getsops/sops/v3/logging"
 	"github.com/getsops/sops/v3/stores/json"
 	"github.com/getsops/sops/v3/stores/yaml"
 )
@@ -72,10 +74,9 @@ func load(data []byte, f Format) (sops.Tree, error) {
 	return tree, nil
 }
 
-// unwrapDataKey asks each age key of the single key group to decrypt the data
-// key with ids, and returns the first success. The identities are applied to
-// the keys directly, so nothing falls back to environment variables or the
-// home directory.
+// unwrapDataKey returns the data key from the first age key of the single key
+// group that ids can open. Only ids are ever tried: no environment variable or
+// home-directory identity is consulted, and no non-age key service is called.
 func unwrapDataKey(groups []sops.KeyGroup, ids Identities) ([]byte, error) {
 	if len(groups) != 1 {
 		return nil, fmt.Errorf("sops file has %d key groups, exactly one is supported", len(groups))
@@ -101,13 +102,16 @@ func unwrapDataKey(groups []sops.KeyGroup, ids Identities) ([]byte, error) {
 	return nil, errors.New("none of the age identities can decrypt the sops file's data key")
 }
 
+// errTamperedText is the message for ciphertext that cannot be decrypted.
+const errTamperedText = "decrypt values: ciphertext is invalid or has been tampered with"
+
 // decryptTree decrypts the tree's values in place and verifies that the MAC
 // stored in the file matches the decrypted content.
 func decryptTree(tree *sops.Tree, dataKey []byte) error {
 	cipher := aes.NewCipher()
-	mac, err := tree.Decrypt(dataKey, cipher)
+	mac, err := decryptValues(tree, dataKey, cipher)
 	if err != nil {
-		return errors.New("decrypt values: ciphertext is invalid or has been tampered with")
+		return err
 	}
 	want, err := cipher.Decrypt(
 		tree.Metadata.MessageAuthenticationCode,
@@ -121,6 +125,33 @@ func decryptTree(tree *sops.Tree, dataKey []byte) error {
 		return errors.New("mac mismatch: the sops file has been modified")
 	}
 	return nil
+}
+
+// decryptValues decrypts the tree's values and returns their MAC. Crafted
+// ciphertext metadata (such as a value relabeled type:bytes) makes sops'
+// cipher panic before the MAC can be checked, so a panic is reported as the
+// same error as any other invalid ciphertext instead of crashing the process.
+func decryptValues(tree *sops.Tree, dataKey []byte, cipher sops.Cipher) (mac string, err error) {
+	defer func() {
+		if recover() != nil {
+			mac, err = "", errors.New(errTamperedText)
+		}
+	}()
+	mac, err = tree.Decrypt(dataKey, cipher)
+	if err != nil {
+		return "", errors.New(errTamperedText)
+	}
+	return mac, nil
+}
+
+// DisableSOPSLogs discards the output of sops' own package loggers. They
+// write to stderr outside the sidecar's log level, and some of their messages
+// echo file content (such as a comment that fails to decrypt); the sidecar
+// reports every failure through its own errors instead.
+func DisableSOPSLogs() {
+	for _, l := range logging.Loggers {
+		l.SetOutput(io.Discard)
+	}
 }
 
 // secrets turns the decrypted single document into secrets, refusing

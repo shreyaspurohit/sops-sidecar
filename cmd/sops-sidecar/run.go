@@ -25,8 +25,9 @@ type sidecar struct {
 	written []writer.Name
 }
 
-// runCommand loads the configuration, registers the signal handlers, and
-// serves until SIGTERM or SIGINT.
+// runCommand serves until SIGTERM or SIGINT and reloads on SIGHUP. All three
+// signals are handled explicitly because the process runs as PID 1, where the
+// kernel applies no default signal actions.
 func runCommand(lookup func(string) (string, bool), stderr io.Writer) int {
 	cfg, err := config.FromEnv(lookup)
 	if err != nil {
@@ -40,8 +41,8 @@ func runCommand(lookup func(string) (string, bool), stderr io.Writer) int {
 	return serve(ctx, cfg, newLogger(stderr, cfg.LogLevel), reload)
 }
 
-// serve performs the first load, then reloads on every value received from
-// reload until ctx is done. It returns the exit code.
+// serve returns exitFailure if the first load fails; otherwise it reloads on
+// every value received from reload and returns the exit code once ctx is done.
 func serve(ctx context.Context, cfg config.Config, log *slog.Logger, reload <-chan os.Signal) int {
 	s, err := openSidecar(cfg, log)
 	if err != nil {
@@ -73,6 +74,9 @@ func newSidecar(cfg config.Config, log *slog.Logger, dir *writer.Dir) (*sidecar,
 		log.Warn("tmpfs check disabled", "output_dir", cfg.OutputDir,
 			"reason", config.EnvAllowNonTmpfs+" is for tests only")
 	} else if err := dir.CheckTmpfs(writer.ProcMounts); err != nil {
+		return nil, err
+	}
+	if err := dir.RemoveTempFiles(); err != nil {
 		return nil, err
 	}
 	marker, err := health.NewMarker(dir)
@@ -152,16 +156,17 @@ func (s *sidecar) removeStale(next []writer.Name) error {
 }
 
 // shutdown keeps the written files unless WipeOnExit is set, in which case it
-// removes them and the ready marker.
+// clears the ready marker first, so nothing is reported ready while files
+// disappear, and then removes them.
 func (s *sidecar) shutdown() int {
 	s.log.Info("shutting down")
 	if !s.cfg.WipeOnExit {
 		return exitOK
 	}
-	if err := s.removeStale(nil); err != nil {
+	if err := s.marker.Clear(); err != nil {
 		return logFailure(s.log, "wipe failed", err)
 	}
-	if err := s.marker.Clear(); err != nil {
+	if err := s.removeStale(nil); err != nil {
 		return logFailure(s.log, "wipe failed", err)
 	}
 	return exitOK

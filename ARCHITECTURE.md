@@ -96,6 +96,7 @@ package writer
 const ReservedPrefix = ".sops-sidecar" // names starting with this belong to the sidecar (ready marker, temp files)
 const DefaultMode Mode = 0o400         // mode when neither the map file entry nor its defaults set one
 const KeepID = -1                      // UID/GID value meaning "leave unchanged" (the sidecar's own id); the built-in default
+const MaxID = 1<<32 - 2                // largest uid/gid accepted (32-bit ids; 2^32-1 means "unchanged" to chown)
 const ProcMounts = "/proc/mounts"      // mount table consulted by CheckTmpfs in production
 
 type Name struct{ /* unexported */ }   // a validated single-element file name; zero value is invalid
@@ -134,6 +135,7 @@ func (d *Dir) Write(f File) error
     // dir, …) → Rename over target. On any error the temp file is removed and the
     // previous target (if any) is untouched. Rejects a zero Name.
 func (d *Dir) Remove(n Name) error              // nil if already absent; refuses to remove a non-regular file
+func (d *Dir) RemoveTempFiles() error           // deletes ReservedPrefix+"-tmp-*" files a killed run left behind
 ```
 
 ### `internal/decrypt`
@@ -169,6 +171,7 @@ type Secret struct {
     Value Value
 }
 
+func DisableSOPSLogs()                          // discards sops' own logrus output, which can echo file content
 func Decrypt(data []byte, f Format, ids Identities) ([]Secret, error)
     // 1. load the tree with sops' yaml/json store (LoadEncryptedFile)
     // 2. require exactly one key group; for each *age.MasterKey in it apply ids
@@ -220,7 +223,7 @@ type Config struct {
 
 func FromEnv(lookup func(string) (string, bool)) (Config, error)
     // unset or empty → default. Booleans via strconv.ParseBool; LOG_LEVEL via
-    // slog.Level.UnmarshalText (debug|info|warn|error). Path env vars must be
+    // a case-insensitive match of debug|info|warn|error (level offsets such as `info+1` are refused). Path env vars must be
     // absolute. SOPS_AGE_KEY present → error explaining that env vars are visible
     // in `docker inspect` and to mount the key as a file instead.
 

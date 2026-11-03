@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/getsops/sops/v3"
+	"github.com/getsops/sops/v3/logging"
 	"github.com/google/go-cmp/cmp"
 	"go.yaml.in/yaml/v3"
 
@@ -196,6 +197,9 @@ func TestDecryptFailures(t *testing.T) {
 				m["kms"] = fakeKMSKeys()
 			})
 		}, "no age key", false},
+		{"value relabeled as bytes", decrypt.FormatYAML, func(_ *testing.T, f []byte) []byte {
+			return bytes.ReplaceAll(f, []byte(",type:str]"), []byte(",type:bytes]"))
+		}, "tampered", false},
 		{"garbage yaml", decrypt.FormatYAML, func(*testing.T, []byte) []byte { return []byte("a: [" + canary) }, "not a valid sops yaml", false},
 		{"plain yaml without sops metadata", decrypt.FormatYAML, func(*testing.T, []byte) []byte { return []byte("a: " + canary + "\n") }, "not a valid sops yaml", false},
 		{"garbage json", decrypt.FormatJSON, func(*testing.T, []byte) []byte { return []byte("{" + canary) }, "not a valid sops json", false},
@@ -411,4 +415,29 @@ func fakeKMSKeys() []any {
 		"created_at":  "2024-01-01T00:00:00Z",
 		"aws_profile": "",
 	}}
+}
+
+func TestDisableSOPSLogsSilencesEchoedComments(t *testing.T) {
+	ids, recipient := newIDs(t)
+	file := sopstest.EncryptYAML(t, recipient, sops.TreeBranch{item("k", "v")})
+	file = append([]byte("# "+canary+"\n"), file...)
+	var buf bytes.Buffer
+	for _, l := range logging.Loggers {
+		l.SetOutput(&buf)
+	}
+	if _, err := decrypt.Decrypt(file, decrypt.FormatYAML, ids); err != nil {
+		t.Fatalf("Decrypt: %v", err)
+	}
+	if !strings.Contains(buf.String(), canary) {
+		t.Fatal("precondition failed: sops did not log the unencrypted comment")
+	}
+
+	decrypt.DisableSOPSLogs()
+	buf.Reset()
+	if _, err := decrypt.Decrypt(file, decrypt.FormatYAML, ids); err != nil {
+		t.Fatalf("Decrypt: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("sops logged after DisableSOPSLogs: %q", buf.String())
+	}
 }

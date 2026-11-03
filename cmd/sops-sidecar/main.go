@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"os"
 	"runtime/debug"
+
+	"github.com/shreyaspurohit/sops-sidecar/internal/decrypt"
 )
 
 const (
@@ -23,6 +25,13 @@ const (
 	cmdHealth  = "health"
 	cmdCheck   = "check"
 	cmdVersion = "version"
+)
+
+// Help requests, answered with the usage text on stdout.
+const (
+	helpWord      = "help"
+	helpFlagShort = "-h"
+	helpFlagLong  = "--help"
 )
 
 // develVersion is reported when the binary carries no module version.
@@ -42,8 +51,10 @@ func main() {
 }
 
 // cli runs one invocation and returns the process exit code. It reads the
-// environment only through lookup and writes only to stdout and stderr.
+// environment only through lookup and writes only to stdout and stderr; sops'
+// own loggers are silenced because they can echo file content.
 func cli(args []string, lookup func(string) (string, bool), stdout, stderr io.Writer) int {
+	decrypt.DisableSOPSLogs()
 	if len(args) == 0 {
 		return runCommand(lookup, stderr)
 	}
@@ -60,7 +71,7 @@ func cli(args []string, lookup func(string) (string, bool), stdout, stderr io.Wr
 	case cmdVersion:
 		_, _ = fmt.Fprintf(stdout, "sops-sidecar %s\n", version())
 		return exitOK
-	case "help", "-h", "--help":
+	case helpWord, helpFlagShort, helpFlagLong:
 		_, _ = fmt.Fprint(stdout, usage)
 		return exitOK
 	default:

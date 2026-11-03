@@ -10,6 +10,7 @@ import (
 
 	"github.com/shreyaspurohit/sops-sidecar/internal/config"
 	"github.com/shreyaspurohit/sops-sidecar/internal/health"
+	"github.com/shreyaspurohit/sops-sidecar/internal/writer"
 )
 
 // running is a serve call in progress with a driver for reloads and shutdown.
@@ -260,5 +261,19 @@ func TestServeWriteErrorLeavesNotReady(t *testing.T) {
 	}
 	if r.ready() {
 		t.Error("ready after a write error")
+	}
+}
+
+func TestServeRemovesLeftoverTempFiles(t *testing.T) {
+	f := newFixture(t)
+	leftover := filepath.Join(f.out, writer.ReservedPrefix+"-tmp-0123456789abcdef")
+	if err := os.WriteFile(leftover, []byte(canary), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	r := f.start()
+	r.waitLogged("secrets written", 1)
+	r.stop()
+	if _, err := os.Lstat(leftover); !os.IsNotExist(err) {
+		t.Errorf("leftover temp file still present: %v", err)
 	}
 }

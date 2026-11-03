@@ -21,7 +21,7 @@ awk -v pkg_min="${PKG_MIN}" -v total_min="${TOTAL_MIN}" \
     split($1, loc, ":"); file = loc[1]
     pkg = file; sub(/\/[^\/]*$/, "", pkg)
     stmts = $2; hit = ($3 > 0) ? stmts : 0
-    key = pkg SUBSEP loc[2]              # dedupe blocks repeated across test binaries
+    key = $1                             # file:range; dedupes blocks repeated across test binaries
     if (key in seen) { if (hit && !covered[key]) { pkg_hit[pkg] += stmts; total_hit += stmts; covered[key] = 1 }; next }
     seen[key] = 1; covered[key] = (hit > 0)
     pkg_all[pkg] += stmts; pkg_hit[pkg] += hit

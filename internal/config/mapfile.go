@@ -152,13 +152,13 @@ func resolveSettings(raw rawSettings, base settings) (settings, error) {
 	return out, nil
 }
 
-// applyID stores a set id in dst and rejects negative ids.
+// applyID stores a set id in dst and rejects ids outside 0..writer.MaxID.
 func applyID(name string, id, dst *int) error {
 	if id == nil {
 		return nil
 	}
-	if *id < 0 {
-		return fmt.Errorf("%s must not be negative", name)
+	if *id < 0 || *id > writer.MaxID {
+		return fmt.Errorf("%s must be between 0 and %d", name, writer.MaxID)
 	}
 	*dst = *id
 	return nil

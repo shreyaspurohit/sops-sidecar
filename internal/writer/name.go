@@ -19,6 +19,10 @@ const DefaultMode Mode = 0o400
 // KeepID as a UID or GID leaves that id unchanged (the sidecar's own id).
 const KeepID = -1
 
+// MaxID is the largest uid or gid a file can be given. Linux ids are 32-bit
+// and 2^32-1 means "unchanged" to chown, so it is excluded.
+const MaxID = 1<<32 - 2
+
 // maxNameLen is the longest file name common file systems accept.
 const maxNameLen = 255
 

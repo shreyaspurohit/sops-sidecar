@@ -177,6 +177,8 @@ func TestParseMapErrors(t *testing.T) {
 		{"negative uid", "files:\n  - {key: a, uid: -1}\n", "uid"},
 		{"negative gid", "files:\n  - {key: a, gid: -5}\n", "gid"},
 		{"negative default uid", "defaults: {uid: -1}\nfiles:\n  - key: a\n", "uid"},
+		{"uid is chown's unchanged sentinel", "files:\n  - {key: a, uid: 4294967295}\n", "uid"},
+		{"gid wraps to root on 32 bits", "files:\n  - {key: a, gid: 4294967296}\n", "gid"},
 		{"uid not a number", "files:\n  - {key: a, uid: root}\n", "cannot unmarshal"},
 		{"two documents", "files:\n  - key: a\n---\nfiles:\n  - key: b\n", "single YAML document"},
 		{"second document malformed", "files:\n  - key: a\n---\n: [\n", "single YAML document"},
@@ -318,4 +320,19 @@ files:
 	// api_token -> api_token 0400
 	// db_password -> postgres_password 0440
 	// ignored: 1
+}
+
+func TestParseMapAcceptsLargestID(t *testing.T) {
+	m, err := config.ParseMap([]byte("files:\n  - {key: a, uid: 4294967294, gid: 4294967294}\n"))
+	if err != nil {
+		t.Fatalf("ParseMap: %v", err)
+	}
+	plan, err := m.Plan([]decrypt.Secret{{Key: "a", Value: decrypt.Value("v")}})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	want := writer.Owner{UID: writer.MaxID, GID: writer.MaxID}
+	if got := plan.Entries[0].File.Owner; got != want {
+		t.Errorf("owner = %+v, want %+v", got, want)
+	}
 }

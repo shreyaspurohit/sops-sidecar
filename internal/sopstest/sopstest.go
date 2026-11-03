@@ -87,8 +87,8 @@ func sealTree(t testing.TB, tree *sops.Tree, dataKey []byte) {
 	}
 }
 
-// clone deep-copies a branch because encryption rewrites values in place and
-// callers reuse their fixtures.
+// clone returns a deep copy of b, so encryption, which rewrites values in
+// place, leaves the original branch unchanged.
 func clone(b sops.TreeBranch) sops.TreeBranch {
 	out := make(sops.TreeBranch, len(b))
 	for i, it := range b {

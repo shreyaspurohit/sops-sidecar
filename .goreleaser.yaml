@@ -83,7 +83,7 @@ docker_signs:
       - sign
       - "${artifact}@${digest}"
       - --yes
-    artifacts: ""
+    artifacts: all
     output: true
 
 release:

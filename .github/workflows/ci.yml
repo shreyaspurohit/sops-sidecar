@@ -39,11 +39,11 @@ jobs:
             exit 1
           fi
       - name: go vet
-        run: go vet ./...
+        run: go vet -tags integration ./...
       - name: golangci-lint
         run: golangci-lint run
       - name: staticcheck
-        run: go tool staticcheck ./...
+        run: go tool staticcheck -tags integration ./...
       - name: deadcode
         # deadcode exits 0 even when it finds something; the script fails on
         # any finding outside the documented redaction-method allowlist.

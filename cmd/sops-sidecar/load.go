@@ -61,8 +61,16 @@ func loadMap(cfg config.Config) (config.Map, error) {
 	return m, nil
 }
 
-// readInput returns the contents of path, refusing files over maxInputBytes.
+// readInput returns the contents of path, refusing anything but a regular
+// file (a FIFO or device could block forever) and files over maxInputBytes.
 func readInput(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
 	f, err := os.Open(path) //nolint:gosec // the path is operator configuration, not untrusted input
 	if err != nil {
 		return nil, err

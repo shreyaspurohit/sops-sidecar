@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/getsops/sops/v3"
@@ -122,6 +123,20 @@ func failureCases() []failureCase {
 				t.Fatal(err)
 			}
 		}, "read age key file"},
+		{"SOPS file is a FIFO", true, func(t *testing.T, f *fixture) {
+			fifo := f.path("fifo")
+			if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			f.env[config.EnvSOPSFile] = fifo
+		}, "not a regular file"},
+		{"age key file is a directory", true, func(t *testing.T, f *fixture) {
+			dir := f.path("keydir")
+			if err := os.Mkdir(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			f.env[config.EnvAgeKeyFile] = dir
+		}, "not a regular file"},
 		{"oversize SOPS file", true, func(_ *testing.T, f *fixture) {
 			f.writeFile("secrets.sops.yaml", bytes.Repeat([]byte("a"), maxInputBytes+1))
 		}, "larger than"},

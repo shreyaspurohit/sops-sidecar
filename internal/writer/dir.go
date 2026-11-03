@@ -8,11 +8,15 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // tempFileMode is the mode of a file while its content is being written,
 // before the final mode applies.
 const tempFileMode fs.FileMode = 0o600
+
+// tempPrefix starts the name of every temp file.
+const tempPrefix = ReservedPrefix + "-tmp-"
 
 // tempRandomBytes is the number of random bytes in a temp file name.
 const tempRandomBytes = 8
@@ -95,8 +99,8 @@ func (d *Dir) Write(f File) error {
 	return nil
 }
 
-// writeTemp creates the temp file with exclusive access, fills it, and sets
-// its final mode and owner, removing it again on any failure.
+// writeTemp leaves either a complete temp file with its final mode and owner,
+// or no temp file at all.
 func (d *Dir) writeTemp(tmp string, f File) error {
 	h, err := d.root.OpenFile(tmp, os.O_CREATE|os.O_EXCL|os.O_WRONLY, tempFileMode)
 	if err != nil {
@@ -108,7 +112,8 @@ func (d *Dir) writeTemp(tmp string, f File) error {
 	return nil
 }
 
-// fill writes, syncs, sets mode and owner, and closes h. It closes h even on error.
+// fill guarantees h is closed, and on success that its content is durable and
+// its mode and owner are final.
 func fill(h *os.File, f File) error {
 	err := writeAll(h, f)
 	if cerr := h.Close(); err == nil {
@@ -168,11 +173,37 @@ func (d *Dir) Remove(n Name) error {
 	return nil
 }
 
+// RemoveTempFiles deletes temp files a previous run left behind when it was
+// killed mid-write. They may hold secret values and no later write would
+// replace them; names under ReservedPrefix belong only to the sidecar.
+func (d *Dir) RemoveTempFiles() error {
+	dir, err := d.root.Open(".")
+	if err != nil {
+		return fmt.Errorf("list output dir: %w", err)
+	}
+	names, err := dir.Readdirnames(-1)
+	if cerr := dir.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return fmt.Errorf("list output dir: %w", err)
+	}
+	for _, n := range names {
+		if !strings.HasPrefix(n, tempPrefix) {
+			continue
+		}
+		if err := d.root.Remove(n); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("remove leftover temp file: %w", err)
+		}
+	}
+	return nil
+}
+
 // tempName returns an unpredictable name reserved for the sidecar's temp files.
 func tempName() (string, error) {
 	b := make([]byte, tempRandomBytes)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("random temp name: %w", err)
 	}
-	return ReservedPrefix + "-tmp-" + hex.EncodeToString(b), nil
+	return tempPrefix + hex.EncodeToString(b), nil
 }
