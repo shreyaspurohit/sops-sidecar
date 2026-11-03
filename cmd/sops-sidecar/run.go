@@ -47,7 +47,7 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger, reload <-ch
 	if err != nil {
 		return logFailure(log, "startup failed", err)
 	}
-	defer s.dir.Close()
+	defer func() { _ = s.dir.Close() }()
 	if err := s.apply(); err != nil {
 		return logFailure(log, "load failed", err)
 	}
@@ -194,7 +194,7 @@ func checkCommand(lookup func(string) (string, bool), stdout, stderr io.Writer) 
 	}
 	slices.Sort(keys)
 	for _, k := range keys {
-		fmt.Fprintln(stdout, k)
+		_, _ = fmt.Fprintln(stdout, k)
 	}
 	return exitOK
 }

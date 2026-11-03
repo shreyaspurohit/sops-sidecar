@@ -58,10 +58,10 @@ func cli(args []string, lookup func(string) (string, bool), stdout, stderr io.Wr
 	case cmdCheck:
 		return checkCommand(lookup, stdout, stderr)
 	case cmdVersion:
-		fmt.Fprintf(stdout, "sops-sidecar %s\n", version())
+		_, _ = fmt.Fprintf(stdout, "sops-sidecar %s\n", version())
 		return exitOK
 	case "help", "-h", "--help":
-		fmt.Fprint(stdout, usage)
+		_, _ = fmt.Fprint(stdout, usage)
 		return exitOK
 	default:
 		return usageError(stderr)
@@ -69,7 +69,7 @@ func cli(args []string, lookup func(string) (string, bool), stdout, stderr io.Wr
 }
 
 func usageError(stderr io.Writer) int {
-	fmt.Fprint(stderr, usage)
+	_, _ = fmt.Fprint(stderr, usage)
 	return exitUsage
 }
 

@@ -63,11 +63,11 @@ func loadMap(cfg config.Config) (config.Map, error) {
 
 // readInput returns the contents of path, refusing files over maxInputBytes.
 func readInput(path string) ([]byte, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // the path is operator configuration, not untrusted input
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, maxInputBytes+1))
 	if err != nil {
 		return nil, err
