@@ -69,7 +69,16 @@ func openSidecar(cfg config.Config, log *slog.Logger) (*sidecar, error) {
 	return s, nil
 }
 
+// newSidecar clears any ready marker a previous run left in dir before any
+// check that can fail, so a failed startup is never reported ready.
 func newSidecar(cfg config.Config, log *slog.Logger, dir *writer.Dir) (*sidecar, error) {
+	marker, err := health.NewMarker(dir)
+	if err != nil {
+		return nil, err
+	}
+	if err := marker.Clear(); err != nil {
+		return nil, err
+	}
 	if cfg.AllowNonTmpfs {
 		log.Warn("tmpfs check disabled", "output_dir", cfg.OutputDir,
 			"reason", config.EnvAllowNonTmpfs+" is for tests only")
@@ -77,10 +86,6 @@ func newSidecar(cfg config.Config, log *slog.Logger, dir *writer.Dir) (*sidecar,
 		return nil, err
 	}
 	if err := dir.RemoveTempFiles(); err != nil {
-		return nil, err
-	}
-	marker, err := health.NewMarker(dir)
-	if err != nil {
 		return nil, err
 	}
 	return &sidecar{cfg: cfg, log: log, dir: dir, marker: marker}, nil

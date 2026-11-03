@@ -74,6 +74,13 @@ func TestSubprocessSubcommands(t *testing.T) {
 			f.env[config.EnvLogLevel] = "debug"
 			f.writeFile("secrets.sops.yaml", []byte("sops: {}\nkey: "+canary+"\n"))
 		}, exitFailure, ""},
+		{"unencrypted comment holding the canary", []string{"check"}, func(t *testing.T, f *fixture) {
+			data, err := os.ReadFile(f.path("secrets.sops.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.writeFile("secrets.sops.yaml", append([]byte("# "+canary+"\n"), data...))
+		}, exitOK, "api_token\ndb_password\n"},
 		{"SOPS_AGE_KEY present", []string{"run"}, func(_ *testing.T, f *fixture) { f.env[config.EnvAgeKey] = canary }, exitFailure, ""},
 		{"tmpfs refused", []string{"run"}, func(_ *testing.T, f *fixture) { delete(f.env, config.EnvAllowNonTmpfs) }, exitFailure, ""},
 	}

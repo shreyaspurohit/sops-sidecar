@@ -277,3 +277,44 @@ func TestServeRemovesLeftoverTempFiles(t *testing.T) {
 		t.Errorf("leftover temp file still present: %v", err)
 	}
 }
+
+func TestServeStartupFailureClearsInheritedMarker(t *testing.T) {
+	f := newFixture(t)
+	if err := os.WriteFile(filepath.Join(f.out, health.MarkerName), nil, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	// A non-empty directory under a temp-file name makes the startup sweep fail.
+	if err := os.MkdirAll(filepath.Join(f.out, writer.ReservedPrefix+"-tmp-dir", "inner"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if code := f.start().exitCode(); code != exitFailure {
+		t.Fatalf("exit = %d, want %d", code, exitFailure)
+	}
+	if err := health.Check(f.out); err == nil {
+		t.Error("health reports ready after a failed startup")
+	}
+}
+
+func TestServeWipeFailureLeavesNotReady(t *testing.T) {
+	f := newFixture(t)
+	f.env[config.EnvWipeOnExit] = "true"
+	r := f.start()
+	r.waitLogged("secrets written", 1)
+	// Replace one written file with a directory so its removal is refused.
+	blocked := filepath.Join(f.out, "api_token")
+	if err := os.Remove(blocked); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(blocked, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if code := r.stop(); code != exitFailure {
+		t.Fatalf("exit = %d, want %d", code, exitFailure)
+	}
+	if r.logged("wipe failed") != 1 {
+		t.Errorf("wipe failure not logged:\n%s", r.log.String())
+	}
+	if err := health.Check(f.out); err == nil {
+		t.Error("health reports ready after a failed wipe")
+	}
+}

@@ -150,7 +150,9 @@ jobs:
       - name: integration tests
         env:
           COMPOSE_VERSION: ${{ matrix.version }}
+          SIDECAR_IMAGE: sops-sidecar:test
         run: |
-          SIDECAR_IMAGE=sops-sidecar:test \
-          COMPOSE_BIN="$(scripts/fetch-compose.sh "${COMPOSE_VERSION}")" \
+          # A separate assignment, so a failed download fails the step.
+          COMPOSE_BIN="$(scripts/fetch-compose.sh "${COMPOSE_VERSION}")"
+          export COMPOSE_BIN
           go test -tags integration -count=1 -v ./test/integration/...

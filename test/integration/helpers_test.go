@@ -85,7 +85,7 @@ func newStack(t *testing.T, example string) (s *stack, recipient string) {
 	t.Helper()
 	image, bin := os.Getenv(envImage), os.Getenv(envCompose)
 	if image == "" || bin == "" {
-		t.Skipf("%s and %s must be set (see .github/workflows/ci.yml)", envImage, envCompose)
+		t.Fatalf("%s and %s must be set (see .github/workflows/ci.yml)", envImage, envCompose)
 	}
 	s = &stack{
 		t:          t,

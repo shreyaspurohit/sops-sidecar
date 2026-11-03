@@ -200,6 +200,12 @@ func TestDecryptFailures(t *testing.T) {
 		{"value relabeled as bytes", decrypt.FormatYAML, func(_ *testing.T, f []byte) []byte {
 			return bytes.ReplaceAll(f, []byte(",type:str]"), []byte(",type:bytes]"))
 		}, "tampered", false},
+		{"mac relabeled as bytes", decrypt.FormatYAML, func(t *testing.T, f []byte) []byte {
+			return rewriteSops(t, f, func(m map[string]any) {
+				mac, _ := m["mac"].(string)
+				m["mac"] = strings.Replace(mac, ",type:str]", ",type:bytes]", 1)
+			})
+		}, "tampered", false},
 		{"garbage yaml", decrypt.FormatYAML, func(*testing.T, []byte) []byte { return []byte("a: [" + canary) }, "not a valid sops yaml", false},
 		{"plain yaml without sops metadata", decrypt.FormatYAML, func(*testing.T, []byte) []byte { return []byte("a: " + canary + "\n") }, "not a valid sops yaml", false},
 		{"garbage json", decrypt.FormatJSON, func(*testing.T, []byte) []byte { return []byte("{" + canary) }, "not a valid sops json", false},
@@ -439,5 +445,31 @@ func TestDisableSOPSLogsSilencesEchoedComments(t *testing.T) {
 	}
 	if buf.Len() != 0 {
 		t.Errorf("sops logged after DisableSOPSLogs: %q", buf.String())
+	}
+}
+
+func TestDecryptRefusesSecondYAMLDocument(t *testing.T) {
+	tests := []struct {
+		name   string
+		suffix string
+	}{
+		{"plain second document", "---\nb: " + canary + "\n"},
+		{"cyclic alias in second document", "---\na: &a [*a]\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ids, recipient := newIDs(t)
+			file := sopstest.EncryptYAML(t, recipient, sops.TreeBranch{item("k", "v")})
+			_, err := decrypt.Decrypt(append(file, []byte(tt.suffix)...), decrypt.FormatYAML, ids)
+			if err == nil {
+				t.Fatal("Decrypt succeeded, want error")
+			}
+			if !strings.Contains(err.Error(), "one YAML document") {
+				t.Errorf("error %q does not mention the single-document rule", err)
+			}
+			if strings.Contains(err.Error(), canary) {
+				t.Errorf("error leaks canary: %v", err)
+			}
+		})
 	}
 }

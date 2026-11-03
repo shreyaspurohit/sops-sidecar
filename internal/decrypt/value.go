@@ -30,6 +30,8 @@ func (v Value) LogValue() slog.Value { return slog.StringValue(redacted) }
 
 // Secret is a key together with its decrypted value.
 type Secret struct {
-	Key   string
+	// Key is the top-level key in the SOPS file; it is not secret.
+	Key string
+	// Value is the decrypted value; it is secret and redacts itself.
 	Value Value
 }

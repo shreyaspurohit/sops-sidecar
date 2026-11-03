@@ -14,7 +14,7 @@
 | Tampered input | The SOPS MAC is verified; a modified file is refused. |
 | Network exposure | Decryption is in-process with an age key. No KMS or network calls; run it with `network_mode: none`. |
 | Path tricks | Output goes through `os.Root`; file names are single path elements; names under the reserved `.sops-sidecar` prefix are rejected. Absolute paths, `..` and symlinks are refused. |
-| Torn or partial state | Each file is replaced atomically (temp file, fsync, chmod/chown, rename), so a reader never sees a partial file. The ready marker is removed before a reload and rewritten after, so a reader that waits for the marker sees a complete set. |
+| Torn or partial state | Each file is replaced atomically (temp file, fsync, chmod/chown, rename), so a reader never sees a partial file. The set is not transactional: the ready marker is removed before a reload and rewritten after, so it reports only that the last load completed at the moment it is checked. |
 | Silent failure | It fails closed: any problem leaves the sidecar unhealthy, so dependents using `depends_on: condition: service_healthy` do not start. |
 
 ## What it does not protect

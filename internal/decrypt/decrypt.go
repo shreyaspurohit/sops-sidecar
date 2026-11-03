@@ -3,6 +3,7 @@
 package decrypt
 
 import (
+	"bytes"
 	"cmp"
 	"errors"
 	"fmt"
@@ -18,7 +19,8 @@ import (
 	"github.com/getsops/sops/v3/config"
 	"github.com/getsops/sops/v3/logging"
 	"github.com/getsops/sops/v3/stores/json"
-	"github.com/getsops/sops/v3/stores/yaml"
+	sopsyaml "github.com/getsops/sops/v3/stores/yaml"
+	"go.yaml.in/yaml/v3"
 )
 
 // Format is the serialization of a SOPS file.
@@ -61,7 +63,12 @@ func Decrypt(data []byte, f Format, ids Identities) ([]Secret, error) {
 }
 
 func load(data []byte, f Format) (sops.Tree, error) {
-	var store sops.Store = yaml.NewStore(&config.YAMLStoreConfig{})
+	if f == FormatYAML {
+		if err := singleYAMLDocument(data); err != nil {
+			return sops.Tree{}, err
+		}
+	}
+	var store sops.Store = sopsyaml.NewStore(&config.YAMLStoreConfig{})
 	name := "yaml"
 	if f == FormatJSON {
 		store = json.NewStore(&config.JSONStoreConfig{})
@@ -72,6 +79,23 @@ func load(data []byte, f Format) (sops.Tree, error) {
 		return sops.Tree{}, fmt.Errorf("input is not a valid sops %s file", name)
 	}
 	return tree, nil
+}
+
+// singleYAMLDocument errors unless data holds at most one YAML document. It
+// must run before sops parses the file: sops expands aliases in later
+// documents without cycle detection, so a cyclic alias there overflows the
+// stack, which no recover can catch. Decoding into yaml.Node does not expand
+// aliases.
+func singleYAMLDocument(data []byte) error {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	var doc yaml.Node
+	if err := dec.Decode(&doc); err != nil {
+		return errors.New("input is not a valid sops yaml file")
+	}
+	if err := dec.Decode(&doc); !errors.Is(err, io.EOF) {
+		return errors.New("sops file must hold exactly one YAML document")
+	}
+	return nil
 }
 
 // unwrapDataKey returns the data key from the first age key of the single key
@@ -106,12 +130,20 @@ func unwrapDataKey(groups []sops.KeyGroup, ids Identities) ([]byte, error) {
 const errTamperedText = "decrypt values: ciphertext is invalid or has been tampered with"
 
 // decryptTree decrypts the tree's values in place and verifies that the MAC
-// stored in the file matches the decrypted content.
-func decryptTree(tree *sops.Tree, dataKey []byte) error {
+// stored in the file matches the decrypted content. Crafted ciphertext
+// metadata (such as a value or the MAC relabeled type:bytes) makes the pinned
+// sops cipher panic; that is reported as invalid ciphertext instead of
+// crashing the process.
+func decryptTree(tree *sops.Tree, dataKey []byte) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = errors.New(errTamperedText)
+		}
+	}()
 	cipher := aes.NewCipher()
-	mac, err := decryptValues(tree, dataKey, cipher)
+	mac, err := tree.Decrypt(dataKey, cipher)
 	if err != nil {
-		return err
+		return errors.New(errTamperedText)
 	}
 	want, err := cipher.Decrypt(
 		tree.Metadata.MessageAuthenticationCode,
@@ -125,23 +157,6 @@ func decryptTree(tree *sops.Tree, dataKey []byte) error {
 		return errors.New("mac mismatch: the sops file has been modified")
 	}
 	return nil
-}
-
-// decryptValues decrypts the tree's values and returns their MAC. Crafted
-// ciphertext metadata (such as a value relabeled type:bytes) makes sops'
-// cipher panic before the MAC can be checked, so a panic is reported as the
-// same error as any other invalid ciphertext instead of crashing the process.
-func decryptValues(tree *sops.Tree, dataKey []byte, cipher sops.Cipher) (mac string, err error) {
-	defer func() {
-		if recover() != nil {
-			mac, err = "", errors.New(errTamperedText)
-		}
-	}()
-	mac, err = tree.Decrypt(dataKey, cipher)
-	if err != nil {
-		return "", errors.New(errTamperedText)
-	}
-	return mac, nil
 }
 
 // DisableSOPSLogs discards the output of sops' own package loggers. They

@@ -27,13 +27,6 @@ const (
 	cmdVersion = "version"
 )
 
-// Help requests, answered with the usage text on stdout.
-const (
-	helpWord      = "help"
-	helpFlagShort = "-h"
-	helpFlagLong  = "--help"
-)
-
 // develVersion is reported when the binary carries no module version.
 const develVersion = "(devel)"
 
@@ -70,9 +63,6 @@ func cli(args []string, lookup func(string) (string, bool), stdout, stderr io.Wr
 		return checkCommand(lookup, stdout, stderr)
 	case cmdVersion:
 		_, _ = fmt.Fprintf(stdout, "sops-sidecar %s\n", version())
-		return exitOK
-	case helpWord, helpFlagShort, helpFlagLong:
-		_, _ = fmt.Fprint(stdout, usage)
 		return exitOK
 	default:
 		return usageError(stderr)

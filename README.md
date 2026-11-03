@@ -31,7 +31,8 @@ cp -r examples/postgres my-stack && cd my-stack
 #    deployment copy: the sidecar drops every capability, so even root cannot
 #    read a key file it does not own, and age.key must belong to the sidecar's
 #    uid (0 here; 65532 for examples/generic-app).
-mkdir -p ~/.config/sops/age && age-keygen -o ~/.config/sops/age/keys.txt
+mkdir -p ~/.config/sops/age
+[ -e ~/.config/sops/age/keys.txt ] || age-keygen -o ~/.config/sops/age/keys.txt
 cp ~/.config/sops/age/keys.txt age.key
 sudo chown 0:0 age.key && sudo chmod 0400 age.key
 
@@ -40,6 +41,8 @@ printf 'postgres_password: change-me\n' > plaintext.yaml
 sops encrypt --age "$(age-keygen -y ~/.config/sops/age/keys.txt)" \
   --input-type yaml --output-type yaml plaintext.yaml > secrets.sops.yaml
 rm plaintext.yaml
+# The SOPS file and map file hold no plaintext; the sidecar must be able to read them.
+chmod 0644 secrets.sops.yaml secrets.map.yaml
 
 # 3. Start. The db container waits until the sidecar is healthy.
 docker compose up -d
@@ -60,10 +63,11 @@ sops edit secrets.sops.yaml   # uses ~/.config/sops/age/keys.txt; age.key is roo
 docker compose kill -s HUP secrets
 ```
 
-Each file is replaced atomically, so a reader never sees a partial file. The ready marker is removed during a reload, so a reader that waits for the marker sees a complete set. Files for keys that disappeared are removed.
+Each file is replaced atomically, so a reader never sees a partial file. The set of files is not replaced as a unit: the ready marker is removed when a reload starts and rewritten when it finishes, so it reports only that the last load completed at the moment it is checked. Files for keys that disappeared are removed.
 
 ### Notes
 
+- The SOPS file and the map file must be readable by the sidecar's uid (`0644` is fine: neither holds plaintext).
 - `age.key` must be owned by the sidecar's uid and mode `0400` (with `cap_drop: [ALL]` not even root can read a bind-mounted file it does not own). Keep a separate, readable copy of the key for `sops edit`.
 - Files of keys removed from the SOPS file while the sidecar was stopped stay on the volume until every container has released it (`docker compose down` removes the tmpfs volume content). The sidecar never deletes files it did not write in its current run.
 

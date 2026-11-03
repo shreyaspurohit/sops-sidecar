@@ -235,7 +235,7 @@ func ParseMap(data []byte) (Map, error)
     // (all optional) and `files: [{key, path, uid, gid, mode}]` (key required,
     // path defaults to key, others inherit defaults, then writer built-ins).
     // Errors: empty files list, empty/duplicate key, invalid/duplicate path
-    // (via writer.ParseName), invalid mode (writer.ParseMode), negative uid/gid,
+    // (via writer.ParseName), invalid mode (writer.ParseMode), uid/gid outside 0..writer.MaxID,
     // multiple YAML documents.
 
 type Entry struct {
@@ -343,7 +343,7 @@ Never logs a value. Key names and file names appear only at `debug`.
 | DEBUG | `secret written` | `key`, `file`, `mode`, `uid`, `gid` |
 | DEBUG | `secret removed` | `file` |
 
-sops' own logrus loggers default to `warn` and never log values; they are left alone.
+sops' own logrus loggers are discarded at startup (`decrypt.DisableSOPSLogs`): they write outside `LOG_LEVEL` and can echo file content, such as an unencrypted comment.
 
 ## Exit codes
 

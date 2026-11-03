@@ -96,7 +96,12 @@ func ParseMode(s string) (Mode, error) {
 func (m Mode) String() string { return fmt.Sprintf("%04o", uint32(m)) }
 
 // Owner is the uid and gid a file is chowned to. KeepID leaves an id unchanged.
-type Owner struct{ UID, GID int }
+type Owner struct {
+	// UID is the owning user id, or KeepID.
+	UID int
+	// GID is the owning group id, or KeepID.
+	GID int
+}
 
 // KeepOwner returns the owner that leaves both ids unchanged: the built-in
 // default, which needs no CHOWN capability.
@@ -104,9 +109,13 @@ func KeepOwner() Owner { return Owner{UID: KeepID, GID: KeepID} }
 
 // File is one file to write into the output dir.
 type File struct {
-	Name  Name
-	Data  []byte // written byte-exact
-	Mode  Mode
+	// Name is the file's name in the output dir.
+	Name Name
+	// Data is the file's content, written byte-exact.
+	Data []byte
+	// Mode is the file's permission bits.
+	Mode Mode
+	// Owner is the uid and gid the file is chowned to.
 	Owner Owner
 }
 

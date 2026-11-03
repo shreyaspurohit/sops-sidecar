@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"syscall"
 
 	"github.com/shreyaspurohit/sops-sidecar/internal/config"
 	"github.com/shreyaspurohit/sops-sidecar/internal/decrypt"
@@ -62,20 +63,22 @@ func loadMap(cfg config.Config) (config.Map, error) {
 }
 
 // readInput returns the contents of path, refusing anything but a regular
-// file (a FIFO or device could block forever) and files over maxInputBytes.
+// file and files over maxInputBytes. The file is opened non-blocking and the
+// opened descriptor is checked, so a FIFO or device (even one swapped in after
+// any earlier check) can never block a load.
 func readInput(path string) ([]byte, error) {
-	info, err := os.Stat(path)
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0) //nolint:gosec // the path is operator configuration, not untrusted input
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
 	if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("%s is not a regular file", path)
 	}
-	f, err := os.Open(path) //nolint:gosec // the path is operator configuration, not untrusted input
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, maxInputBytes+1))
 	if err != nil {
 		return nil, err

@@ -26,9 +26,7 @@ func TestUsage(t *testing.T) {
 		{"unknown subcommand", []string{"bogus"}, exitUsage, false, true},
 		{"extra args after run", []string{"run", "x"}, exitUsage, false, true},
 		{"extra args after version", []string{"version", "--json"}, exitUsage, false, true},
-		{"help", []string{"help"}, exitOK, true, false},
-		{"-h", []string{"-h"}, exitOK, true, false},
-		{"--help", []string{"--help"}, exitOK, true, false},
+		{"-h is not a subcommand", []string{"-h"}, exitUsage, false, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

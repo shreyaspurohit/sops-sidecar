@@ -30,7 +30,9 @@ type mapEntry struct {
 
 // Entry is one file of the plan: the key it comes from and the file to write.
 type Entry struct {
-	Key  string
+	// Key is the SOPS key the file's content comes from.
+	Key string
+	// File is the file to write; its Data is the key's value.
 	File writer.File
 }
 
@@ -76,7 +78,7 @@ func (m *rawMode) UnmarshalYAML(n *yaml.Node) error {
 
 // ParseMap parses and validates a map file. The schema is strict: unknown
 // fields, a second YAML document, an empty files list, empty or duplicate
-// keys, invalid or duplicate file names, invalid modes, and negative ids are
+// keys, invalid or duplicate file names, invalid modes, and ids outside 0..writer.MaxID are
 // all errors.
 func ParseMap(data []byte) (Map, error) {
 	raw, err := decodeMap(data)
