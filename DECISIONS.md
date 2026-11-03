@@ -55,6 +55,8 @@ One line each: decision — reason. Newest sections at the bottom.
 - Renovate re-enables only the three `go tool` modules among indirect gomod deps — avoids a PR per transitive sops dependency.
 - Release attests both `dist/checksums.txt` and the pushed image digest with `actions/attest-build-provenance`.
 - `renovate-config.yml` pins the renovate npm version once with a `# renovate:` annotation; validator runs without a filename (repo mode).
+- Renovate `ignorePaths` is overridden to only `node_modules`/`vendor` — `config:best-practices` ignores `**/examples/**`, which would freeze the examples' digest-pinned images; the examples' reference to this project's own image (major tag) is excluded on purpose.
+- The integration tests read the busybox image from `examples/generic-app/compose.yaml` — one pin, one place, tracked by Renovate.
 
 ## Code review (lead)
 
