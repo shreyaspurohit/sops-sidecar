@@ -130,7 +130,7 @@ func (d *Dir) Close() error
 func (d *Dir) CheckTmpfs(mountsFile string) error // reads mountsFile, errors unless MountType(...) == "tmpfs"
 func (d *Dir) Write(f File) error
     // atomic, all via os.Root: create ReservedPrefix+"-tmp-<random hex>" with
-    // O_CREATE|O_EXCL|O_WRONLY 0600 → write Data → Sync → Chmod(Mode) → Chown(Owner)
+    // O_CREATE|O_EXCL|O_WRONLY 0600 → write Data → Sync → Chown(Owner) → Chmod(Mode)
     // → Close → refuse if the target exists and is not a regular file (symlink,
     // dir, …) → Rename over target. On any error the temp file is removed and the
     // previous target (if any) is untouched. Rejects a zero Name.
@@ -305,7 +305,7 @@ Subcommands (`flag` + `switch`, no framework):
 
 | Command | Behavior |
 |---|---|
-| `run` (default when no args) | Config → open output dir → tmpfs check (skipped with a `WARN` when `ALLOW_NON_TMPFS=true`) → load. Initial load failure → exit 1. Then block. `SIGHUP` → reload (failure: logged, marker stays cleared, previous files stay, keep running). `SIGTERM`/`SIGINT` → exit 0; files kept unless `WIPE_ON_EXIT=true` (then remove the last load's files and the marker). |
+| `run` (default when no args) | Config → open output dir → clear an inherited ready marker → tmpfs check (skipped with a `WARN` when `ALLOW_NON_TMPFS=true`) → remove leftover temp files → adopt the regular secret files already there (the output dir belongs to the sidecar) → load, which removes adopted files whose keys are gone. Initial load failure → exit 1. Then block. `SIGHUP` → reload (failure: logged, marker stays cleared, previous files stay, keep running). `SIGTERM`/`SIGINT` → exit 0; files kept unless `WIPE_ON_EXIT=true` (then clear the marker and remove every managed file). |
 | `health` | `config.FromEnv` → `health.Check(OutputDir)` → exit 0 or 1. Prints nothing on success. |
 | `check` | Read inputs → decrypt → plan; print each planned entry's **key** on its own line to stdout (sorted); write nothing; exit 1 on any problem. |
 | `version` | Print `sops-sidecar <version>` where version comes from `runtime/debug.ReadBuildInfo().Main.Version`. |

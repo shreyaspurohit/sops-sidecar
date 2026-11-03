@@ -13,6 +13,9 @@ All notable changes to this project are documented here. The format follows [Kee
 - `sops-sidecar check` (validate inputs, print key names only) and `sops-sidecar version`.
 - Fail-closed startup: refuses a non-tmpfs output dir, `SOPS_AGE_KEY` in the environment, nested values, unsafe paths and a wrong key.
 - Secret values are never logged or included in errors, verified by canary tests.
+- Refuses SOPS files encrypted with `mac_only_encrypted`, whose unencrypted values would be unauthenticated.
+- Adopts secret files left in the output dir by an earlier run, so keys removed while the sidecar was stopped are deleted at the next start.
+- Example tmpfs volumes are mounted `nosuid,nodev,noexec`.
 - Static, multi-arch (`linux/amd64`, `linux/arm64`) non-root image; examples for Postgres and a generic `*_FILE` app.
 - Integration tests on Compose v2.20.0 and latest; CI, release (signed images, SBOM, provenance) and Renovate configuration.
 - Documentation: security model, tool comparison, reboot ordering, platform recipes.
