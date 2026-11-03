@@ -206,6 +206,9 @@ func TestDecryptFailures(t *testing.T) {
 				m["mac"] = strings.Replace(mac, ",type:str]", ",type:bytes]", 1)
 			})
 		}, "tampered", false},
+		{"mac only over encrypted values", decrypt.FormatYAML, func(t *testing.T, f []byte) []byte {
+			return rewriteSops(t, f, func(m map[string]any) { m["mac_only_encrypted"] = true })
+		}, "mac_only_encrypted", false},
 		{"garbage yaml", decrypt.FormatYAML, func(*testing.T, []byte) []byte { return []byte("a: [" + canary) }, "not a valid sops yaml", false},
 		{"plain yaml without sops metadata", decrypt.FormatYAML, func(*testing.T, []byte) []byte { return []byte("a: " + canary + "\n") }, "not a valid sops yaml", false},
 		{"garbage json", decrypt.FormatJSON, func(*testing.T, []byte) []byte { return []byte("{" + canary) }, "not a valid sops json", false},

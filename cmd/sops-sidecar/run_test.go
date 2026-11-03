@@ -135,8 +135,9 @@ func TestServeInfoLogOmitsNames(t *testing.T) {
 func TestServeWipeOnExit(t *testing.T) {
 	f := newFixture(t)
 	f.env[config.EnvWipeOnExit] = "true"
+	// Only regular files are adopted and wiped; other entries are left alone.
 	foreign := filepath.Join(f.out, "not-ours")
-	if err := os.WriteFile(foreign, []byte("x"), 0o600); err != nil {
+	if err := os.Mkdir(foreign, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	r := f.start()
@@ -317,4 +318,21 @@ func TestServeWipeFailureLeavesNotReady(t *testing.T) {
 	if err := health.Check(f.out); err == nil {
 		t.Error("health reports ready after a failed wipe")
 	}
+}
+
+func TestServeAdoptsFilesFromEarlierRun(t *testing.T) {
+	f := newFixture(t)
+	stale := filepath.Join(f.out, "revoked_key")
+	if err := os.WriteFile(stale, []byte(canary), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	r := f.start()
+	r.waitLogged("secrets written", 1)
+	if _, err := os.Lstat(stale); !os.IsNotExist(err) {
+		t.Errorf("file of a key absent from the SOPS file survived startup: %v", err)
+	}
+	if !r.ready() {
+		t.Error("not ready after the first load")
+	}
+	r.stop()
 }

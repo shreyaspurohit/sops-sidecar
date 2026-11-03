@@ -69,7 +69,8 @@ Each file is replaced atomically, so a reader never sees a partial file. The set
 
 - The SOPS file and the map file must be readable by the sidecar's uid (`0644` is fine: neither holds plaintext).
 - `age.key` must be owned by the sidecar's uid and mode `0400` (with `cap_drop: [ALL]` not even root can read a bind-mounted file it does not own). Keep a separate, readable copy of the key for `sops edit`.
-- Files of keys removed from the SOPS file while the sidecar was stopped stay on the volume until every container has released it (`docker compose down` removes the tmpfs volume content). The sidecar never deletes files it did not write in its current run.
+- The output dir belongs to the sidecar. At startup it adopts the regular files already there, so the files of keys removed while it was stopped are deleted by the first load. Do not put anything else in that volume.
+- The examples mount the tmpfs with `nosuid,nodev,noexec` in addition to the size and mode options.
 
 ## Configuration
 

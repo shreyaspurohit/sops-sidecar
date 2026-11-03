@@ -52,6 +52,11 @@ func Decrypt(data []byte, f Format, ids Identities) ([]Secret, error) {
 	if err != nil {
 		return nil, err
 	}
+	if tree.Metadata.MACOnlyEncrypted {
+		// That MAC leaves unencrypted values unauthenticated, so anyone who
+		// can write the file could inject or change them without the key.
+		return nil, errors.New("sops file uses mac_only_encrypted, which leaves unencrypted values unauthenticated; re-encrypt it without that option")
+	}
 	dataKey, err := unwrapDataKey(tree.Metadata.KeyGroups, ids)
 	if err != nil {
 		return nil, err

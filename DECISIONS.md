@@ -34,7 +34,7 @@ One line each: decision — reason. Newest sections at the bottom.
 - Readiness state lives only in the ready marker file — `health` runs as a separate process (`docker exec`), so in-memory state would be invisible to it.
 - A failed reload leaves previous secret files in place but the marker removed (unhealthy) — fail closed; the next successful SIGHUP restores readiness.
 - A failed initial load exits non-zero — fail fast; dependent services never see a healthy sidecar.
-- Reload removes only files written by the previous successful load that are absent from the new plan; the output dir is never swept — avoids deleting anything the sidecar did not create.
+- Reload removes files the sidecar manages (written or adopted at startup) that are absent from the new plan; directories, symlinks, and reserved names are never touched.
 - `LOG_LEVEL` env var (`debug|info|warn|error`, default `info`) — §3 says key names are never logged "at default level", which implies a non-default level; at `debug` key names (never values) are logged.
 - Version comes from `runtime/debug.ReadBuildInfo` (VCS-stamped module version) — avoids a package-level `var version` set by `-ldflags`.
 - Image runs as non-root (distroless `static:nonroot`, uid 65532) by default; examples that chown files run the sidecar as `user: "0:0"` with `cap_drop: [ALL]` + `cap_add: [CHOWN, FOWNER]` — Docker does not grant added capabilities to non-root processes, and the canonical tmpfs (`mode=0711`) is root-owned.
@@ -64,9 +64,13 @@ One line each: decision — reason. Newest sections at the bottom.
 - The `shutting down` log has no `signal` attribute — `signal.NotifyContext` does not expose which signal fired, and capturing it would need an extra goroutine.
 - sops' own logrus loggers are discarded at startup (`decrypt.DisableSOPSLogs`) — they write outside our log level and can echo file content (e.g. an unencrypted comment); all failures surface through our own errors.
 - A panic inside sops' tree decryption (crafted `type:` metadata) is recovered and reported as invalid ciphertext — the pinned sops cipher panics before the MAC check; recovering at that single boundary keeps "return errors, don't panic".
-- Leftover `.sops-sidecar-tmp-*` files are removed at startup — a killed write can leave a plaintext temp file; names under the reserved prefix belong only to the sidecar. Files of keys removed while the sidecar was stopped are not swept (documented): the sidecar never deletes files it did not write in the current run.
+- Leftover `.sops-sidecar-tmp-*` files are removed at startup — a killed write can leave a plaintext temp file; names under the reserved prefix belong only to the sidecar. Superseded by the security review: regular files already in the output dir are adopted at startup (`writer.Dir.Names`), so the first load removes files of keys that were dropped while the sidecar was stopped — otherwise a revoked secret would stay served and reported ready after a restart. The output dir belongs to the sidecar (documented).
 - uid/gid are limited to `0..4294967294` (`writer.MaxID`) — larger values would truncate or hit chown's "unchanged" sentinel.
 - Errors are wrapped once, by the package that knows the context (`writer`, `health`); `cmd` passes them through without re-prefixing.
+
+## Security review
+
+- Accepted: adopt existing output files at startup (stale secrets after a restart); refuse `mac_only_encrypted` SOPS files (unencrypted values would be unauthenticated); chown before chmod; examples mount the tmpfs `nosuid,nodev,noexec` (beyond §3's canonical options, which remain a valid minimum).
 
 ## Explicitly not doing
 
@@ -78,4 +82,9 @@ One line each: decision — reason. Newest sections at the bottom.
 - Round 1, Claude #10 (Lstat-then-Remove race in `writer.Dir.Remove`) — all operations are confined by `os.Root`; the worst case is removing an empty directory someone swapped in inside the output dir, which needs write access to the tmpfs that already implies full control of the secrets.
 - Round 1, Claude #11 (scheduled trivy job fails until the first image is published) — expected; it starts passing after `v0.1.0` is released and the GHCR package is public (listed in the maintainer steps).
 - Round 1, Claude #12 (README compatibility line names NAS and Portainer appliance builds without a test on those appliances) — the wording is the spec's own (§3); the claim rests on testing the Compose version those builds ship (v2.20.0).
+- Security S4 (release job runs asdf-installed tools from unpinned plugin repos with signing rights) — the spec mandates installing CI tools from `.tool-versions` via `asdf-vm/actions/install`; the action itself is SHA-pinned and tool versions are exact. Residual risk documented in docs/security-model.md.
+- Security S5 (Renovate automerges non-major updates, including sops/age and base digests) — the spec requires automerge for patch/minor/digest/pin after required checks pass; the 3-day minimum release age and the CI gates apply.
+- Security S6 (any `v*` tag push publishes) — a repository setting; the maintainer steps include a tag protection rule for `v*`.
+- Security S7 (examples use the floating `:0` sidecar tag) — deliberate so users receive fixes; docs/security-model.md advises digest pinning and shows `cosign verify`.
+- Security S9–S12 (informational: partial set after ENOSPC is reported not ready; no memory zeroing/core-dump limit; sops audit init; compose checksum from the same release; zizmor not hash-pinned) — accepted as documented limitations; no change.
 - Round 1, Codex #6 (part) — non-regular input files are now refused, but input reads are not made cancellable via context: with only regular files accepted, a read cannot block indefinitely.

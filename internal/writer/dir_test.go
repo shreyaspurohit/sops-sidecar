@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -418,4 +419,44 @@ func TestRemoveTempFilesErrors(t *testing.T) {
 			t.Fatal("RemoveTempFiles succeeded on a non-empty directory")
 		}
 	})
+}
+
+func TestNames(t *testing.T) {
+	d, path := openDir(t)
+	for _, name := range []string{"a", "b", writer.ReservedPrefix + "-ready", writer.ReservedPrefix + "-tmp-x"} {
+		if err := os.WriteFile(filepath.Join(path, name), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Mkdir(filepath.Join(path, "dir"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("a", filepath.Join(path, "link")); err != nil {
+		t.Fatal(err)
+	}
+	names, err := d.Names()
+	if err != nil {
+		t.Fatalf("Names: %v", err)
+	}
+	var got []string
+	for _, n := range names {
+		got = append(got, n.String())
+	}
+	slices.Sort(got)
+	if want := []string{"a", "b"}; !slices.Equal(got, want) {
+		t.Errorf("Names = %v, want %v", got, want)
+	}
+}
+
+func TestNamesClosedDir(t *testing.T) {
+	d, err := writer.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := d.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.Names(); err == nil {
+		t.Fatal("Names on a closed dir succeeded")
+	}
 }

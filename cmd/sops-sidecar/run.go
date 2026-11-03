@@ -16,7 +16,8 @@ import (
 )
 
 // sidecar is the state of one running `run`: the output dir, the ready marker,
-// and the names of the files this process has written and not yet removed.
+// and the names of the secret files on disk that it manages (written by this
+// process or adopted from an earlier run) and has not yet removed.
 type sidecar struct {
 	cfg     config.Config
 	log     *slog.Logger
@@ -55,7 +56,8 @@ func serve(ctx context.Context, cfg config.Config, log *slog.Logger, reload <-ch
 	return s.wait(ctx, reload)
 }
 
-// openSidecar opens the output dir and, unless disabled, checks it is tmpfs.
+// openSidecar opens the output dir and prepares it for the first load; on
+// error the output dir is closed again.
 func openSidecar(cfg config.Config, log *slog.Logger) (*sidecar, error) {
 	dir, err := writer.Open(cfg.OutputDir)
 	if err != nil {
@@ -69,26 +71,44 @@ func openSidecar(cfg config.Config, log *slog.Logger) (*sidecar, error) {
 	return s, nil
 }
 
-// newSidecar clears any ready marker a previous run left in dir before any
-// check that can fail, so a failed startup is never reported ready.
+// newSidecar returns the sidecar for dir after preparing dir for the first load.
 func newSidecar(cfg config.Config, log *slog.Logger, dir *writer.Dir) (*sidecar, error) {
 	marker, err := health.NewMarker(dir)
 	if err != nil {
 		return nil, err
 	}
+	written, err := prepareOutputDir(cfg, log, dir, marker)
+	if err != nil {
+		return nil, err
+	}
+	return &sidecar{cfg: cfg, log: log, dir: dir, marker: marker, written: written}, nil
+}
+
+// prepareOutputDir clears any ready marker a previous run left before any
+// check that can fail, so a failed startup is never reported ready. It returns
+// the secret files already in dir: the output dir belongs to the sidecar, so
+// they are adopted and the first load removes those whose keys are gone.
+func prepareOutputDir(cfg config.Config, log *slog.Logger, dir *writer.Dir, marker health.Marker) ([]writer.Name, error) {
 	if err := marker.Clear(); err != nil {
 		return nil, err
 	}
-	if cfg.AllowNonTmpfs {
-		log.Warn("tmpfs check disabled", "output_dir", cfg.OutputDir,
-			"reason", config.EnvAllowNonTmpfs+" is for tests only")
-	} else if err := dir.CheckTmpfs(writer.ProcMounts); err != nil {
+	if err := checkOutputDir(cfg, log, dir); err != nil {
 		return nil, err
 	}
 	if err := dir.RemoveTempFiles(); err != nil {
 		return nil, err
 	}
-	return &sidecar{cfg: cfg, log: log, dir: dir, marker: marker}, nil
+	return dir.Names()
+}
+
+// checkOutputDir errors unless dir is tmpfs; with AllowNonTmpfs it only warns.
+func checkOutputDir(cfg config.Config, log *slog.Logger, dir *writer.Dir) error {
+	if cfg.AllowNonTmpfs {
+		log.Warn("tmpfs check disabled", "output_dir", cfg.OutputDir,
+			"reason", config.EnvAllowNonTmpfs+" is for tests only")
+		return nil
+	}
+	return dir.CheckTmpfs(writer.ProcMounts)
 }
 
 // wait reloads on each reload signal and shuts down when ctx is done.

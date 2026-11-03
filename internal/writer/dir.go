@@ -129,10 +129,12 @@ func writeAll(h *os.File, f File) error {
 	if err := h.Sync(); err != nil {
 		return err
 	}
-	if err := h.Chmod(fs.FileMode(f.Mode)); err != nil {
+	// Chown before chmod: the final mode's group bits must apply only once
+	// the final group owns the file.
+	if err := h.Chown(f.Owner.UID, f.Owner.GID); err != nil {
 		return err
 	}
-	return h.Chown(f.Owner.UID, f.Owner.GID)
+	return h.Chmod(fs.FileMode(f.Mode))
 }
 
 // discard removes the temp file and returns cause.
@@ -177,16 +179,9 @@ func (d *Dir) Remove(n Name) error {
 // killed mid-write. They may hold secret values and no later write would
 // replace them; names under ReservedPrefix belong only to the sidecar.
 func (d *Dir) RemoveTempFiles() error {
-	dir, err := d.root.Open(".")
+	names, err := d.entries()
 	if err != nil {
-		return fmt.Errorf("list output dir: %w", err)
-	}
-	names, err := dir.Readdirnames(-1)
-	if cerr := dir.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
-		return fmt.Errorf("list output dir: %w", err)
+		return err
 	}
 	for _, n := range names {
 		if !strings.HasPrefix(n, tempPrefix) {
@@ -197,6 +192,47 @@ func (d *Dir) RemoveTempFiles() error {
 		}
 	}
 	return nil
+}
+
+// Names returns the regular files in the output dir whose names ParseName
+// accepts: the secret files any run may have written. Reserved files,
+// directories, symlinks, and other entries are left out.
+func (d *Dir) Names() ([]Name, error) {
+	entries, err := d.entries()
+	if err != nil {
+		return nil, err
+	}
+	var names []Name
+	for _, e := range entries {
+		n, err := ParseName(e)
+		if err != nil {
+			continue
+		}
+		info, err := d.root.Lstat(e)
+		if err != nil {
+			return nil, fmt.Errorf("stat %s: %w", n, err)
+		}
+		if info.Mode().IsRegular() {
+			names = append(names, n)
+		}
+	}
+	return names, nil
+}
+
+// entries returns the names of all entries in the output dir.
+func (d *Dir) entries() ([]string, error) {
+	dir, err := d.root.Open(".")
+	if err != nil {
+		return nil, fmt.Errorf("list output dir: %w", err)
+	}
+	names, err := dir.Readdirnames(-1)
+	if cerr := dir.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return nil, fmt.Errorf("list output dir: %w", err)
+	}
+	return names, nil
 }
 
 // tempName returns an unpredictable name reserved for the sidecar's temp files.

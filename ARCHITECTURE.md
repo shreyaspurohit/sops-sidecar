@@ -136,6 +136,7 @@ func (d *Dir) Write(f File) error
     // previous target (if any) is untouched. Rejects a zero Name.
 func (d *Dir) Remove(n Name) error              // nil if already absent; refuses to remove a non-regular file
 func (d *Dir) RemoveTempFiles() error           // deletes ReservedPrefix+"-tmp-*" files a killed run left behind
+func (d *Dir) Names() ([]Name, error)           // regular files with valid secret names (adopted at startup)
 ```
 
 ### `internal/decrypt`
