@@ -1,0 +1,63 @@
+# golangci-lint v2 configuration. Every //nolint needs a specific linter and a reason.
+version: "2"
+
+linters:
+  default: none
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - unparam
+    - ineffassign
+    - errcheck
+    - errorlint
+    - gosec
+    - revive
+    - gocritic
+    - misspell
+    - nolintlint
+    - gocyclo
+  settings:
+    gocyclo:
+      min-complexity: 10
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment # struct layout tuning is premature optimization here
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: error-strings
+        - name: error-naming
+        - name: receiver-naming
+        - name: indent-error-flow
+        - name: superfluous-else
+        - name: unused-parameter
+        - name: context-as-argument
+        - name: errorf
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - hugeParam # File values are small; pointer receivers would obscure immutability
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - gosec # tests read fixture paths built from t.TempDir
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/shreyaspurohit/sops-sidecar
