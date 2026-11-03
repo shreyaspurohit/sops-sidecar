@@ -1,6 +1,10 @@
 # golangci-lint v2 configuration. Every //nolint needs a specific linter and a reason.
 version: "2"
 
+run:
+  build-tags:
+    - integration # test/integration is lint-checked too
+
 linters:
   default: none
   enable:
