@@ -58,7 +58,7 @@ func (d *Dir) Close() error { return d.root.Close() }
 // CheckTmpfs errors unless the output dir lies on a tmpfs according to the
 // mount table in mountsFile.
 func (d *Dir) CheckTmpfs(mountsFile string) error {
-	mounts, err := os.ReadFile(mountsFile)
+	mounts, err := os.ReadFile(mountsFile) //nolint:gosec // the mount table path is a trusted setting, not request input
 	if err != nil {
 		return fmt.Errorf("read mount table: %w", err)
 	}

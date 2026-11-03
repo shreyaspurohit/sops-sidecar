@@ -23,9 +23,9 @@ func mustName(t *testing.T, s string) writer.Name {
 	return n
 }
 
-func openDir(t *testing.T) (*writer.Dir, string) {
+func openDir(t *testing.T) (d *writer.Dir, path string) {
 	t.Helper()
-	path := t.TempDir()
+	path = t.TempDir()
 	d, err := writer.Open(path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -303,12 +303,12 @@ func TestOpen(t *testing.T) {
 	})
 	t.Run("symlink refused", func(t *testing.T) {
 		base := t.TempDir()
-		real := filepath.Join(base, "real")
+		realDir := filepath.Join(base, "real")
 		link := filepath.Join(base, "link")
-		if err := os.Mkdir(real, 0o700); err != nil {
+		if err := os.Mkdir(realDir, 0o700); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.Symlink(real, link); err != nil {
+		if err := os.Symlink(realDir, link); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := writer.Open(link); err == nil {

@@ -58,10 +58,10 @@ func encrypt(t testing.TB, store sops.Store, recipient string, b sops.TreeBranch
 		},
 	}
 	dataKey := make([]byte, dataKeySize)
-	if _, err := rand.Read(dataKey); err != nil {
+	if _, err = rand.Read(dataKey); err != nil {
 		t.Fatalf("data key: %v", err)
 	}
-	if err := key.Encrypt(dataKey); err != nil {
+	if err = key.Encrypt(dataKey); err != nil {
 		t.Fatalf("encrypt data key: %v", err)
 	}
 	sealTree(t, &tree, dataKey)

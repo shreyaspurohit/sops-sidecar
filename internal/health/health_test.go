@@ -9,15 +9,15 @@ import (
 	"github.com/shreyaspurohit/sops-sidecar/internal/writer"
 )
 
-func newMarker(t *testing.T) (health.Marker, string) {
+func newMarker(t *testing.T) (m health.Marker, dir string) {
 	t.Helper()
-	dir := t.TempDir()
+	dir = t.TempDir()
 	d, err := writer.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = d.Close() })
-	m, err := health.NewMarker(d)
+	m, err = health.NewMarker(d)
 	if err != nil {
 		t.Fatal(err)
 	}

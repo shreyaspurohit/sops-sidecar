@@ -20,7 +20,7 @@ const canary = "CANARY-7f3a9c-SECRET"
 
 func item(k string, v any) sops.TreeItem { return sops.TreeItem{Key: k, Value: v} }
 
-func newIDs(t *testing.T) (decrypt.Identities, string) {
+func newIDs(t *testing.T) (ids decrypt.Identities, recipient string) {
 	t.Helper()
 	keyFile, recipient := sopstest.NewIdentity(t)
 	ids, err := decrypt.ParseIdentities(keyFile)
@@ -255,7 +255,7 @@ func TestDecryptIgnoresEnvironmentKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := decrypt.Decrypt(file, decrypt.FormatYAML, ids); err == nil {
+	if _, derr := decrypt.Decrypt(file, decrypt.FormatYAML, ids); derr == nil {
 		t.Fatal("Decrypt succeeded with the wrong explicit identity")
 	}
 	right, err := decrypt.ParseIdentities(keyFile)

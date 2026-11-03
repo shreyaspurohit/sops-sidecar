@@ -181,11 +181,16 @@ func FuzzParseName(f *testing.F) {
 		if n.String() != s {
 			t.Fatalf("round trip changed %q to %q", s, n.String())
 		}
-		if s == "" || s == "." || s == ".." || len(s) > 255 || strings.ContainsAny(s, "/\\\x00") || strings.HasPrefix(s, writer.ReservedPrefix) {
+		if unsafeName(s) {
 			t.Fatalf("ParseName accepted unsafe name %q", s)
 		}
 		if _, rerr := writer.ParseReservedName(s); rerr == nil {
 			t.Fatalf("name %q accepted by both ParseName and ParseReservedName", s)
 		}
 	})
+}
+
+func unsafeName(s string) bool {
+	return s == "" || s == "." || s == ".." || len(s) > 255 ||
+		strings.ContainsAny(s, "/\\\x00") || strings.HasPrefix(s, writer.ReservedPrefix)
 }

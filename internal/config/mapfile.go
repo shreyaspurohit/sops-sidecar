@@ -153,7 +153,7 @@ func resolveSettings(raw rawSettings, base settings) (settings, error) {
 }
 
 // applyID stores a set id in dst and rejects negative ids.
-func applyID(name string, id *int, dst *int) error {
+func applyID(name string, id, dst *int) error {
 	if id == nil {
 		return nil
 	}
