@@ -1,0 +1,101 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+project_name: sops-sidecar
+
+builds:
+  - id: sops-sidecar
+    main: ./cmd/sops-sidecar
+    binary: sops-sidecar
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: sops-sidecar
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# One SPDX document per archive. Needs `syft` on PATH (from .tool-versions).
+sboms:
+  - id: archives
+    artifacts: archive
+
+# The image reuses the repo Dockerfile's `prebuilt` stage, so the binary in the
+# image is the one GoReleaser built (same flags as `docker build .`).
+dockers_v2:
+  - id: sops-sidecar
+    ids:
+      - sops-sidecar
+    dockerfile: Dockerfile
+    images:
+      - ghcr.io/shreyaspurohit/sops-sidecar
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}{{ .Major }}.{{ .Minor }}{{ end }}"
+      - "{{ if not .Prerelease }}{{ .Major }}{{ end }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    flags:
+      - --target=prebuilt
+    labels:
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+    sbom: true
+
+# Keyless (Sigstore) signing: cosign uses the workflow's OIDC token.
+signs:
+  - id: checksums
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args:
+      - sign-blob
+      - "--bundle=${signature}"
+      - "${artifact}"
+      - --yes
+    artifacts: checksum
+    output: true
+
+docker_signs:
+  - id: images
+    cmd: cosign
+    args:
+      - sign
+      - "${artifact}@${digest}"
+      - --yes
+    artifacts: ""
+    output: true
+
+release:
+  github:
+    owner: shreyaspurohit
+    name: sops-sidecar
+  prerelease: auto
+
+changelog:
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^ci:"
