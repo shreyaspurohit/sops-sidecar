@@ -39,4 +39,4 @@ jobs:
         with:
           asdf_version: ${{ env.ASDF_VERSION }}
       - name: renovate-config-validator
-        run: npx --yes --package "renovate@${RENOVATE_VERSION}" -- renovate-config-validator --strict renovate.json
+        run: npx --yes --package "renovate@${RENOVATE_VERSION}" -- renovate-config-validator --strict

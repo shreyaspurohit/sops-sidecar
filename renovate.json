@@ -68,6 +68,7 @@
       "description": "go.mod tool directives (deadcode, govulncheck, staticcheck) are recorded as indirect requirements; Renovate skips indirect deps by default",
       "matchManagers": ["gomod"],
       "matchDepTypes": ["indirect"],
+      "matchPackageNames": ["golang.org/x/tools", "golang.org/x/vuln", "honnef.co/go/tools"],
       "enabled": true
     },
     {

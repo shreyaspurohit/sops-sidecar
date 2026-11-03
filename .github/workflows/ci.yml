@@ -128,17 +128,21 @@ jobs:
         run: trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed sops-sidecar:scan
 
   integration:
-    name: integration (compose ${{ matrix.compose }})
+    # The role, not the version, is in the job name so the required-check name
+    # stays stable when Renovate bumps the latest version.
+    name: integration (compose ${{ matrix.role }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        compose:
+        include:
           # Deliberate minimum supported Compose version; Renovate must not bump it.
-          - v2.20.0
-          # renovate: datasource=github-releases depName=docker/compose
-          - v5.7.0
+          - role: minimum
+            version: v2.20.0
+          - role: latest
+            # renovate: datasource=github-releases depName=docker/compose
+            version: v5.7.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -150,7 +154,7 @@ jobs:
         run: docker build -t sops-sidecar:test .
       - name: integration tests
         env:
-          COMPOSE_VERSION: ${{ matrix.compose }}
+          COMPOSE_VERSION: ${{ matrix.version }}
         run: |
           SIDECAR_IMAGE=sops-sidecar:test \
           COMPOSE_BIN="$(scripts/fetch-compose.sh "${COMPOSE_VERSION}")" \
