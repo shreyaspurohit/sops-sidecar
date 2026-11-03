@@ -21,6 +21,10 @@ func (v Value) GoString() string { return redacted }
 // Format writes a fixed placeholder for every verb.
 func (v Value) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(redacted)) }
 
+// MarshalText returns a fixed placeholder so that JSON and other text
+// encoders cannot emit the bytes (they would otherwise encode them as base64).
+func (v Value) MarshalText() ([]byte, error) { return []byte(redacted), nil }
+
 // LogValue returns a fixed placeholder for structured logging.
 func (v Value) LogValue() slog.Value { return slog.StringValue(redacted) }
 

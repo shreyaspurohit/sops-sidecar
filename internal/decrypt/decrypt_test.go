@@ -2,6 +2,9 @@ package decrypt_test
 
 import (
 	"bytes"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -361,9 +364,17 @@ func TestValueNeverRevealsContent(t *testing.T) {
 	jlogger := slog.New(slog.NewJSONHandler(&logs, nil))
 	jlogger.Info("msg", "secret", s, "value", s.Value, "ids", ids)
 	outputs["slog-json"] = logs.String()
+	js, err := json.Marshal(secrets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputs["json"] = string(js)
+	forbidden := []string{canary, base64.StdEncoding.EncodeToString([]byte(canary)), hex.EncodeToString([]byte(canary))}
 	for name, out := range outputs {
-		if strings.Contains(out, canary) {
-			t.Errorf("%s output reveals the value: %s", name, out)
+		for _, f := range forbidden {
+			if strings.Contains(out, f) {
+				t.Errorf("%s output reveals the value (%q): %s", name, f, out)
+			}
 		}
 		if strings.Contains(out, "AGE-SECRET-KEY") {
 			t.Errorf("%s output reveals the identity: %s", name, out)
