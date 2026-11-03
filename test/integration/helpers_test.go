@@ -283,11 +283,13 @@ func (s *stack) fileSHA256(service, path string) string {
 	return fields[0]
 }
 
-// login tries a TCP psql login to the db service with password.
+// login tries a TCP psql login to the db service with password. It connects to
+// the container's own non-loopback address: the official image trusts
+// loopback connections, so only other addresses check the password.
 func (s *stack) login(password string) error {
 	s.t.Helper()
-	_, err := s.exec(dbService, "env", "PGPASSWORD="+password,
-		"psql", "-h", "127.0.0.1", "-U", "postgres", "-tAc", "select 1")
+	_, err := s.exec(dbService, "env", "PGPASSWORD="+password, "sh", "-c",
+		`psql -h "$(hostname -i)" -U postgres -tAc "select 1"`)
 	return err
 }
 
