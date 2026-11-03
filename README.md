@@ -86,8 +86,11 @@ Every default lives in this table. Paths must be absolute. An empty value is the
 | `WIPE_ON_EXIT` | `false` | Remove written files and the ready marker on `SIGTERM`/`SIGINT`. |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. Values are never logged at any level. |
 | `SOPS_AGE_KEY` | not supported | Refused at startup: environment variables leak through `docker inspect`. Mount the key as a file. |
+| *(file default)* mode | `0400` | Mode of each secret file when the map file sets none (map `defaults` or per-file `mode` override it). |
+| *(file default)* owner | unchanged | Each secret file keeps the sidecar's uid and gid when the map file sets none (map `uid`/`gid` override it). |
+| *(ready marker)* | `OUTPUT_DIR/.sops-sidecar-ready`, mode `0444` | Exists only while the last load succeeded. |
 
-Without a map file, every top-level key becomes `OUTPUT_DIR/<key>` with the built-in file defaults: **mode `0400`, owner unchanged** (the sidecar's uid and gid). The ready marker, `OUTPUT_DIR/.sops-sidecar-ready` (mode `0444`), exists only while the last load succeeded.
+Without a map file, every top-level key becomes `OUTPUT_DIR/<key>` with the file defaults from the table.
 
 ### Map file
 
