@@ -23,6 +23,7 @@
 - **Anyone who can read the sidecar's `/proc` or memory, or `docker exec` into a container that mounts the volume.** Treat access to the Docker socket as access to the secrets.
 - **The age key file.** It decrypts everything. Protect it with host file permissions: own it by the sidecar's uid (0 for the postgres example, 65532 for generic-app) with mode `0400`, since with all capabilities dropped not even root can read a bind-mounted key it does not own. Keep it out of git and out of backups, and do not place it in a shared or backed-up project folder.
 - **Swap.** If the host swaps tmpfs pages to disk, plaintext can reach disk. Disable swap or use encrypted swap if that matters to you.
+- **Whatever you mount into `/etc/sops`.** The sops library linked into the binary reads `/etc/sops/audit.yaml` at startup and, if that file configures an audit database, connects to it. The image ships no such file and the examples use `network_mode: none`; do not mount one.
 - **The consuming application.** Once a container reads a secret, what it does with it is up to that application.
 - **Compromised images and the supply chain** beyond what signatures give you. Released images are signed with cosign keyless signing; verify before use:
 

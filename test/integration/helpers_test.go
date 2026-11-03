@@ -57,10 +57,12 @@ const (
 	zeroTime = "0001-01-01T00:00:00Z"
 )
 
-// keyOwners maps each example to the uid:gid its sidecar runs as.
-var keyOwners = map[string]string{
-	postgresExample:   "0:0",
-	genericAppExample: "65532:65532",
+// keyOwner returns the uid:gid the example's sidecar runs as.
+func keyOwner(example string) string {
+	if example == genericAppExample {
+		return "65532:65532"
+	}
+	return "0:0"
 }
 
 // stack is one Compose project started from a copy of an example directory.
@@ -91,7 +93,7 @@ func newStack(t *testing.T, example string) (s *stack, recipient string) {
 		image:      image,
 		dir:        t.TempDir(),
 		project:    "sstest-" + randomHex(t, 4),
-		keyOwner:   keyOwners[example],
+		keyOwner:   keyOwner(example),
 	}
 	copyExample(t, example, s.dir)
 	t.Cleanup(s.down)
