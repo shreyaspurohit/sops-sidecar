@@ -38,8 +38,9 @@ rm plaintext.yaml
 # 3. Start. The db container waits until the sidecar is healthy.
 docker compose up -d
 
-# 4. Check the login (the password is read from the secret file).
-docker compose exec db sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)" psql -h 127.0.0.1 -U postgres -c "select 1"'
+# 4. Check the login with the password from the secret file. Connect to the
+#    container's own address: the postgres image trusts loopback connections.
+docker compose exec db sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)" psql -h "$(hostname -i)" -U postgres -c "select 1"'
 ```
 
 `compose.yaml` and `secrets.map.yaml` are the files you copied from [examples/postgres](examples/postgres). A second example, [examples/generic-app](examples/generic-app), runs the sidecar as non-root with no capabilities for any image that reads a `*_FILE` variable.
@@ -100,7 +101,7 @@ Exit codes: `0` success (`health`: ready), `1` failure (config, inputs, decrypt,
 ## Notes
 
 - **Files, not env vars.** Point the app at the file (`POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password`) and mount the secrets volume read-only.
-- **Privileges.** The image runs as a non-root user by default, which needs no capabilities while files stay owned by the sidecar's uid. When the map sets owners other than the sidecar's uid, run it as `user: "0:0"` with `cap_drop: [ALL]` and `cap_add: [CHOWN, FOWNER]` only. Docker gives added capabilities to root processes only, which is why root is needed there. See [examples/postgres/compose.yaml](examples/postgres/compose.yaml).
+- **Privileges.** The image runs as a non-root user (uid 65532) by default, which needs no capabilities while files stay owned by the sidecar's uid; give the tmpfs volume `uid=65532,gid=65532` in its `o:` options so that user can write to it (see [examples/generic-app](examples/generic-app/compose.yaml)). When the map sets owners other than the sidecar's uid, run it as `user: "0:0"` with `cap_drop: [ALL]` and `cap_add: [CHOWN, FOWNER]` only. Docker gives added capabilities to root processes only, which is why root is needed there. See [examples/postgres/compose.yaml](examples/postgres/compose.yaml).
 - **Numbers and booleans** are written in SOPS's string form (`True`/`False`). To get other text, quote the value in the YAML.
 - **Single-file bind mounts follow the inode.** Rewrite the SOPS file in place (`sops edit`, `sops encrypt -i`); do not replace it with a new file. If the host path of a single-file bind mount does not exist, Docker creates a directory there.
 - **Reboots.** Docker ignores `depends_on` when restarting containers after a host reboot; see [docs/reboot-ordering.md](docs/reboot-ordering.md).
