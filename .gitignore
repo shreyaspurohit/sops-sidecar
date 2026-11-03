@@ -4,3 +4,4 @@ review/
 /dist/
 /coverage.out
 /sops-sidecar
+.claude/
