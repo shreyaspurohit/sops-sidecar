@@ -45,14 +45,9 @@ jobs:
       - name: staticcheck
         run: go tool staticcheck ./...
       - name: deadcode
-        # deadcode exits 0 even when it finds something, so fail on any output.
-        run: |
-          dead="$(go tool deadcode -test=false ./cmd/sops-sidecar)"
-          if [ -n "${dead}" ]; then
-            echo "unreachable functions:" >&2
-            echo "${dead}" >&2
-            exit 1
-          fi
+        # deadcode exits 0 even when it finds something; the script fails on
+        # any finding outside the documented redaction-method allowlist.
+        run: ./scripts/deadcode.sh
 
   workflow-lint:
     name: workflow-lint

@@ -102,7 +102,7 @@ func (s *sidecar) wait(ctx context.Context, reload <-chan os.Signal) int {
 // failure at any point leaves the sidecar not ready.
 func (s *sidecar) apply() error {
 	if err := s.marker.Clear(); err != nil {
-		return fmt.Errorf("clear ready marker: %w", err)
+		return err
 	}
 	plan, err := load(s.cfg)
 	if err != nil {
@@ -119,7 +119,7 @@ func (s *sidecar) apply() error {
 		return err
 	}
 	if err := s.marker.Set(); err != nil {
-		return fmt.Errorf("set ready marker: %w", err)
+		return err
 	}
 	s.log.Info("secrets written", "files", len(plan.Entries), "ignored", plan.Ignored)
 	return nil
@@ -128,12 +128,13 @@ func (s *sidecar) apply() error {
 // write writes one planned file and records its name as present on disk.
 func (s *sidecar) write(e config.Entry) error {
 	if err := s.dir.Write(e.File); err != nil {
-		return fmt.Errorf("write %s: %w", e.File.Name, err)
+		return err
 	}
 	if !slices.Contains(s.written, e.File.Name) {
 		s.written = append(s.written, e.File.Name)
 	}
-	s.log.Debug("secret written", "key", e.Key, "file", e.File.Name.String())
+	s.log.Debug("secret written", "key", e.Key, "file", e.File.Name.String(),
+		"mode", e.File.Mode, "uid", e.File.Owner.UID, "gid", e.File.Owner.GID)
 	return nil
 }
 
@@ -142,7 +143,7 @@ func (s *sidecar) write(e config.Entry) error {
 func (s *sidecar) removeStale(next []writer.Name) error {
 	for _, n := range writer.Stale(s.written, next) {
 		if err := s.dir.Remove(n); err != nil {
-			return fmt.Errorf("remove %s: %w", n, err)
+			return err
 		}
 		s.written = slices.DeleteFunc(s.written, func(w writer.Name) bool { return w == n })
 		s.log.Debug("secret removed", "file", n.String())

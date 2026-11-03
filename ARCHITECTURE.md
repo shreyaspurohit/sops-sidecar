@@ -334,10 +334,11 @@ Never logs a value. Key names and file names appear only at `debug`.
 |---|---|---|
 | INFO | `secrets written` | `files` (count), `ignored` (count) |
 | INFO | `reload requested` | — |
-| INFO | `shutting down` | `signal` |
-| WARN | `tmpfs check disabled` | `output_dir` (explains `ALLOW_NON_TMPFS` is for tests only) |
-| ERROR | `load failed` / `reload failed` | `error` |
-| DEBUG | `secret written` / `secret removed` | `key`, `file` |
+| INFO | `shutting down` | — |
+| WARN | `tmpfs check disabled` | `output_dir`, `reason` (`ALLOW_NON_TMPFS` is for tests only) |
+| ERROR | `config failed` / `startup failed` / `load failed` / `reload failed` / `check failed` / `not ready` / `wipe failed` | `error` |
+| DEBUG | `secret written` | `key`, `file`, `mode`, `uid`, `gid` |
+| DEBUG | `secret removed` | `file` |
 
 sops' own logrus loggers default to `warn` and never log values; they are left alone.
 

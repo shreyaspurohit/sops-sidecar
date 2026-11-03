@@ -56,6 +56,12 @@ One line each: decision — reason. Newest sections at the bottom.
 - Release attests both `dist/checksums.txt` and the pushed image digest with `actions/attest-build-provenance`.
 - `renovate-config.yml` pins the renovate npm version once with a `# renovate:` annotation; validator runs without a filename (repo mode).
 
+## Code review (lead)
+
+- `deadcode` exception: the six redaction methods (`decrypt.Value.{String,GoString,Format,MarshalText,LogValue}`, `decrypt.Identities.Format`) are unreachable by design — they exist so a value or age identity can never be printed, logged, or JSON-encoded by mistake; `scripts/deadcode.sh` allows exactly these and fails on anything else.
+- The `shutting down` log has no `signal` attribute — `signal.NotifyContext` does not expose which signal fired, and capturing it would need an extra goroutine.
+- Errors are wrapped once, by the package that knows the context (`writer`, `health`); `cmd` passes them through without re-prefixing.
+
 ## Explicitly not doing
 
 - Templating, env-var injection, Vault/KMS/PGP backends, web UI, file-watch auto-reload, multiple input files, nested keys, subdirectories in output paths, dotenv/ini/binary SOPS formats, Shamir key groups.
