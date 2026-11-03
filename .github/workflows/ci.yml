@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Tools come from .tool-versions; never download a different Go toolchain.
+  GOTOOLCHAIN: local
+  # renovate: datasource=github-releases depName=asdf-vm/asdf extractVersion=^v(?<version>.+)$
+  ASDF_VERSION: 0.20.2
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        with:
+          asdf_version: ${{ env.ASDF_VERSION }}
+      - name: gofumpt
+        run: |
+          unformatted="$(gofumpt -l .)"
+          if [ -n "${unformatted}" ]; then
+            echo "gofumpt would reformat:" >&2
+            echo "${unformatted}" >&2
+            exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: golangci-lint
+        run: golangci-lint run
+      - name: staticcheck
+        run: go tool staticcheck ./...
+      - name: deadcode
+        # deadcode exits 0 even when it finds something, so fail on any output.
+        run: |
+          dead="$(go tool deadcode -test=false ./cmd/sops-sidecar)"
+          if [ -n "${dead}" ]; then
+            echo "unreachable functions:" >&2
+            echo "${dead}" >&2
+            exit 1
+          fi
+
+  workflow-lint:
+    name: workflow-lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        with:
+          asdf_version: ${{ env.ASDF_VERSION }}
+      - name: actionlint
+        run: actionlint
+      - name: shellcheck
+        run: shellcheck scripts/*.sh
+      - name: zizmor
+        run: scripts/zizmor.sh .github/workflows
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        with:
+          asdf_version: ${{ env.ASDF_VERSION }}
+      - name: unit tests with coverage gates
+        run: ./scripts/coverage.sh
+      - name: upload coverage profile
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: coverage.out
+          if-no-files-found: error
+
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        with:
+          asdf_version: ${{ env.ASDF_VERSION }}
+      - name: govulncheck
+        run: go tool govulncheck ./...
+
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        with:
+          asdf_version: ${{ env.ASDF_VERSION }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: build both architectures (no push)
+        # The Go stage cross-compiles on the runner; no QEMU is needed.
+        run: docker buildx build --platform linux/amd64,linux/arm64 .
+      - name: load the native image
+        run: docker buildx build --load --tag sops-sidecar:scan .
+      - name: trivy scan
+        run: trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed sops-sidecar:scan
+
+  integration:
+    # The role, not the version, is in the job name so the required-check name
+    # stays stable when Renovate bumps the latest version.
+    name: integration (compose ${{ matrix.role }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Deliberate minimum supported Compose version; Renovate must not bump it.
+          - role: minimum
+            version: v2.20.0
+          - role: latest
+            # renovate: datasource=github-releases depName=docker/compose
+            version: v5.7.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        with:
+          asdf_version: ${{ env.ASDF_VERSION }}
+      - name: build image
+        run: docker build -t sops-sidecar:test .
+      - name: integration tests
+        env:
+          COMPOSE_VERSION: ${{ matrix.version }}
+        run: |
+          SIDECAR_IMAGE=sops-sidecar:test \
+          COMPOSE_BIN="$(scripts/fetch-compose.sh "${COMPOSE_VERSION}")" \
+          go test -tags integration -count=1 -v ./test/integration/...
