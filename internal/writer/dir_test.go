@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -35,8 +36,6 @@ func openDir(t *testing.T) (d *writer.Dir, path string) {
 	return d, path
 }
 
-func keep() writer.Owner { return writer.Owner{UID: writer.KeepID, GID: writer.KeepID} }
-
 func TestWriteByteExact(t *testing.T) {
 	tests := []struct {
 		name string
@@ -52,7 +51,7 @@ func TestWriteByteExact(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			d, path := openDir(t)
-			f := writer.File{Name: mustName(t, "secret"), Data: tt.data, Mode: 0o400, Owner: keep()}
+			f := writer.File{Name: mustName(t, "secret"), Data: tt.data, Mode: 0o400, Owner: writer.KeepOwner()}
 			if err := d.Write(f); err != nil {
 				t.Fatalf("Write: %v", err)
 			}
@@ -73,8 +72,8 @@ func TestWriteModeAndOwner(t *testing.T) {
 		mode  writer.Mode
 		owner writer.Owner
 	}{
-		{"mode 0400 keep owner", 0o400, keep()},
-		{"mode 0444 keep owner", 0o444, keep()},
+		{"mode 0400 keep owner", 0o400, writer.KeepOwner()},
+		{"mode 0444 keep owner", 0o444, writer.KeepOwner()},
 		{"mode 0640 own ids", 0o640, writer.Owner{UID: os.Getuid(), GID: os.Getgid()}},
 		{"mode 0000 own uid keep gid", 0o000, writer.Owner{UID: os.Getuid(), GID: writer.KeepID}},
 	}
@@ -105,7 +104,7 @@ func TestWriteReplacesExistingFile(t *testing.T) {
 	if err := os.WriteFile(target, []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	f := writer.File{Name: mustName(t, "s"), Data: []byte("new"), Mode: 0o400, Owner: keep()}
+	f := writer.File{Name: mustName(t, "s"), Data: []byte("new"), Mode: 0o400, Owner: writer.KeepOwner()}
 	if err := d.Write(f); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
@@ -118,7 +117,7 @@ func TestWriteReplacesExistingFile(t *testing.T) {
 func TestWriteLeavesNoTempFiles(t *testing.T) {
 	d, path := openDir(t)
 	for _, s := range []string{"a", "b", "a"} {
-		f := writer.File{Name: mustName(t, s), Data: []byte(s), Mode: 0o400, Owner: keep()}
+		f := writer.File{Name: mustName(t, s), Data: []byte(s), Mode: 0o400, Owner: writer.KeepOwner()}
 		if err := d.Write(f); err != nil {
 			t.Fatal(err)
 		}
@@ -165,7 +164,7 @@ func TestWriteRefusesNonRegularTarget(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			d, path := openDir(t)
 			tt.setup(t, path)
-			f := writer.File{Name: mustName(t, "s"), Data: []byte(canary), Mode: 0o400, Owner: keep()}
+			f := writer.File{Name: mustName(t, "s"), Data: []byte(canary), Mode: 0o400, Owner: writer.KeepOwner()}
 			err := d.Write(f)
 			if err == nil {
 				t.Fatal("Write succeeded, want error")
@@ -190,7 +189,7 @@ func TestWriteSymlinkTargetOutsideUntouched(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(path, "s")); err != nil {
 		t.Fatal(err)
 	}
-	_ = d.Write(writer.File{Name: mustName(t, "s"), Data: []byte("new"), Mode: 0o400, Owner: keep()})
+	_ = d.Write(writer.File{Name: mustName(t, "s"), Data: []byte("new"), Mode: 0o400, Owner: writer.KeepOwner()})
 	got, _ := os.ReadFile(outside)
 	if string(got) != "orig" {
 		t.Errorf("file behind symlink changed to %q", got)
@@ -209,7 +208,7 @@ func TestWriteAfterClose(t *testing.T) {
 	if err := d.Close(); err != nil {
 		t.Fatal(err)
 	}
-	f := writer.File{Name: mustName(t, "s"), Data: []byte(canary), Mode: 0o400, Owner: keep()}
+	f := writer.File{Name: mustName(t, "s"), Data: []byte(canary), Mode: 0o400, Owner: writer.KeepOwner()}
 	err := d.Write(f)
 	if err == nil {
 		t.Fatal("Write on closed dir succeeded")
@@ -327,40 +326,40 @@ func TestOpen(t *testing.T) {
 }
 
 func TestCheckTmpfs(t *testing.T) {
-	d, path := openDir(t)
-	resolved, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	write := func(t *testing.T, content string) string {
-		t.Helper()
-		p := filepath.Join(t.TempDir(), "mounts")
-		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+	t.Run("disk dir refused", func(t *testing.T) {
+		// A dir inside the module tree is on the developer's or runner's disk,
+		// unlike t.TempDir, which some systems put on tmpfs.
+		path, err := os.MkdirTemp(".", "not-tmpfs-")
+		if err != nil {
 			t.Fatal(err)
 		}
-		return p
-	}
-	tests := []struct {
-		name    string
-		mounts  func(t *testing.T) string
-		wantErr bool
-	}{
-		{"on tmpfs", func(t *testing.T) string { return write(t, "tmpfs "+resolved+" tmpfs rw 0 0\n") }, false},
-		{"on overlay root", func(t *testing.T) string { return write(t, "overlay / overlay rw 0 0\n") }, true},
-		{"tmpfs ancestor overridden by ext4", func(t *testing.T) string {
-			return write(t, "tmpfs / tmpfs rw 0 0\next4 "+resolved+" ext4 rw 0 0\n")
-		}, true},
-		{"no matching line", func(t *testing.T) string { return write(t, "tmpfs /elsewhere tmpfs rw 0 0\n") }, true},
-		{"unreadable mounts file", func(t *testing.T) string { return filepath.Join(t.TempDir(), "absent") }, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := d.CheckTmpfs(tt.mounts(t))
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("CheckTmpfs error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
+		t.Cleanup(func() { _ = os.RemoveAll(path) })
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d, err := writer.Open(abs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = d.Close() })
+		if err := d.CheckTmpfs(); err == nil {
+			t.Fatal("CheckTmpfs accepted a directory on disk")
+		}
+	})
+	t.Run("tmpfs accepted", func(t *testing.T) {
+		if runtime.GOOS != "linux" {
+			t.Skip("tmpfs exists on Linux only")
+		}
+		d, err := writer.Open("/dev/shm")
+		if err != nil {
+			t.Skipf("no /dev/shm: %v", err)
+		}
+		t.Cleanup(func() { _ = d.Close() })
+		if err := d.CheckTmpfs(); err != nil {
+			t.Fatalf("CheckTmpfs on /dev/shm: %v", err)
+		}
+	})
 }
 
 func ExampleParseMode() {

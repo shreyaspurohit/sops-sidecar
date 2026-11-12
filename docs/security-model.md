@@ -6,7 +6,7 @@
 
 | Asset | How |
 |---|---|
-| Plaintext on disk | The output dir must be tmpfs (memory-backed); the sidecar verifies it in `/proc/mounts` and refuses otherwise. |
+| Plaintext on disk | The output dir must be tmpfs (memory-backed); the sidecar asks the kernel for the file system of the opened output dir (`fstatfs`) and refuses anything but tmpfs. |
 | Plaintext in git | Secrets are committed only as a SOPS file. |
 | `docker inspect` | Secrets are files, not environment variables. `SOPS_AGE_KEY` is refused, so the key cannot be passed as an env var either. |
 | Logs | Values are never logged or put in errors, at any level. Tests run every code path with a canary value and assert it never appears. |

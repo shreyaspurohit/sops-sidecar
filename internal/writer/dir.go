@@ -59,19 +59,22 @@ func Open(path string) (*Dir, error) {
 // Close releases the output dir.
 func (d *Dir) Close() error { return d.root.Close() }
 
-// CheckTmpfs errors unless the output dir lies on a tmpfs according to the
-// mount table in mountsFile.
-func (d *Dir) CheckTmpfs(mountsFile string) error {
-	mounts, err := os.ReadFile(mountsFile) //nolint:gosec // the mount table path is a trusted setting, not request input
+// CheckTmpfs errors unless the open output dir itself lies on a tmpfs, as
+// reported by the kernel (fstatfs).
+func (d *Dir) CheckTmpfs() error {
+	f, err := d.root.Open(".")
 	if err != nil {
-		return fmt.Errorf("read mount table: %w", err)
+		return fmt.Errorf("open output dir: %w", err)
 	}
-	fsType, err := MountType(mounts, d.path)
+	ok, err := isTmpfs(f)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
 	if err != nil {
-		return fmt.Errorf("output dir %q: %w", d.path, err)
+		return fmt.Errorf("output dir %q: file system type: %w", d.path, err)
 	}
-	if fsType != tmpfsType {
-		return fmt.Errorf("output dir %q is on %s, not tmpfs", d.path, fsType)
+	if !ok {
+		return fmt.Errorf("output dir %q is not on tmpfs", d.path)
 	}
 	return nil
 }

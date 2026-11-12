@@ -57,7 +57,7 @@ SIDECAR_IMAGE=sops-sidecar:test COMPOSE_BIN="$(scripts/fetch-compose.sh v2.20.0)
 - Functional core, imperative shell: parsing, validation and planning are pure; I/O sits at the edges.
 - Never log or return secret values, in any level or error. Tests assert this with a canary value.
 - No dead code, no commented-out code, doc comments on every exported identifier. Comments say what is guaranteed and why, not who calls the code.
-- Table-driven tests through the public API. Coverage gates: at least 90% per `internal/` package and 80% overall.
+- Table-driven tests through the public API. Coverage gates: at least 90% per `internal/` package and 80% overall, enforced on Linux (CI). On other platforms `scripts/coverage.sh` prints the numbers without failing, because Linux-only code such as the tmpfs check cannot run there.
 - Every default is documented in the README configuration table.
 
 Use [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`).

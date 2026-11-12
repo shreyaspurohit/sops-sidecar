@@ -108,7 +108,7 @@ func checkOutputDir(cfg config.Config, log *slog.Logger, dir *writer.Dir) error 
 			"reason", config.EnvAllowNonTmpfs+" is for tests only")
 		return nil
 	}
-	return dir.CheckTmpfs(writer.ProcMounts)
+	return dir.CheckTmpfs()
 }
 
 // wait reloads on each reload signal and shuts down when ctx is done.

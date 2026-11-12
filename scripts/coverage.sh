@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Runs unit tests with the race detector and enforces the coverage gates:
 # every internal/ package >= PKG_MIN percent, the whole module >= TOTAL_MIN.
+# The gates are enforced on Linux, the only platform the sidecar runs on (and
+# CI's); elsewhere Linux-only code (the tmpfs check) cannot run, so the
+# numbers are printed but do not fail the script.
 set -euo pipefail
 
 readonly PKG_MIN=90
@@ -13,7 +16,13 @@ readonly EXCLUDE="${MODULE}/internal/sopstest/"
 cd "$(dirname "$0")/.."
 go test -race -covermode=atomic -coverprofile="${PROFILE}" ./...
 
-awk -v pkg_min="${PKG_MIN}" -v total_min="${TOTAL_MIN}" \
+enforce=1
+if [[ "$(uname -s)" != "Linux" ]]; then
+  enforce=0
+  echo "note: coverage gates are enforced on Linux only; the numbers below are informational" >&2
+fi
+
+awk -v pkg_min="${PKG_MIN}" -v total_min="${TOTAL_MIN}" -v enforce="${enforce}" \
     -v module="${MODULE}/" -v exclude="${EXCLUDE}" '
   NR == 1 { next }                       # "mode: atomic" header
   index($1, exclude) == 1 { next }
@@ -41,5 +50,5 @@ awk -v pkg_min="${PKG_MIN}" -v total_min="${TOTAL_MIN}" \
     status = (total + 1e-9 >= total_min) ? "ok  " : "FAIL"
     if (status == "FAIL") fail = 1
     printf "%s %-28s %6.1f%% (min %d%%)\n", status, "total", total, total_min
-    exit fail
+    exit fail && enforce
   }' "${PROFILE}"

@@ -94,3 +94,15 @@ One line each: decision — reason. Newest sections at the bottom.
 ## Release attestations skipped on private repos
 
 The two `actions/attest-build-provenance` steps in `release.yml` run only when the repository is public (`!github.event.repository.private`). GitHub offers artifact attestations for private repositories only on Enterprise Cloud, so a release from the private pre-launch repo would otherwise fail after the release and image were already published. cosign keyless signing still runs either way.
+
+## Library review (November 2026)
+
+Every non-test Go file was reviewed for code that a maintained, open-source library or the standard library already provides.
+
+- **Replaced:** the `/proc/mounts` parser (octal unescaping and longest-prefix mount matching) with `unix.Fstatfs` from `golang.org/x/sys` (BSD-3-Clause, maintained by the Go team, already in the module graph through sops). The kernel reports the file system of the opened output dir directly, which also removes any path-matching ambiguity.
+- **Replaced:** the hand-written octal check in `writer.ParseMode` with `strconv.ParseUint(s, 8, 32)`, which already rejects non-octal digits, signs, prefixes and underscores.
+- **Kept: atomic writes in `writer.Dir`.** `google/renameio` (Apache-2.0) and `natefinch/atomic` (MIT) cannot work inside an `os.Root`, cannot chown the temp file before the rename, and cannot refuse to replace a non-regular file. Those three properties are why the code exists.
+- **Kept: `sops/decrypt.Data` is not used** (see Design above).
+- **Kept: the environment config reader.** `caarlos0/env` (MIT) would replace about 40 lines, but the absolute-path checks, "map file set explicitly" and the `SOPS_AGE_KEY` refusal would still be custom.
+- **Kept: the `LOG_LEVEL` parsing.** `slog.Level.UnmarshalText` also accepts offsets such as `info+1`, which the config contract deliberately refuses.
+- **Kept: the CLI dispatch.** Four subcommands with no flags do not justify cobra or urfave/cli.

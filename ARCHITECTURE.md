@@ -63,7 +63,7 @@ Each concept, its rules, and its constants are defined in exactly one package.
 | Env var names, input-path defaults, boolean/level parsing, `SOPS_AGE_KEY` refusal | `config` | `Env*`, `DefaultSOPSFile`, `DefaultAgeKeyFile`, `DefaultMapFile`, `DefaultOutputDir`, `Config` |
 | Map file schema and rules (which keys, which names, inherited defaults, duplicates), the plan | `config` | `Map`, `Plan`, `Entry` |
 | SOPS formats, age identity parsing, decryption, MAC check, top-level scalar rule, value redaction | `decrypt` | `Format*`, `Identities`, `Secret`, `Value` |
-| File names, reserved prefix, modes, owners, built-in mode/owner defaults, atomic writes, removal, tmpfs check, mount-table parsing | `writer` | `ReservedPrefix`, `DefaultMode`, `KeepID`, `ProcMounts`, `Name`, `Mode`, `Owner`, `File`, `Dir` |
+| File names, reserved prefix, modes, owners, built-in mode/owner defaults, atomic writes, removal, tmpfs check | `writer` | `ReservedPrefix`, `DefaultMode`, `KeepID`, `Name`, `Mode`, `Owner`, `File`, `Dir` |
 | Readiness: the ready marker's name, mode, setting, clearing, checking | `health` | `MarkerName`, `MarkerMode`, `Marker` |
 | CLI, subcommands, exit codes, logging setup, reading input files (size limit), signals, lifecycle | `cmd/sops-sidecar` | `exit*`, `maxInputBytes`, subcommand names |
 
@@ -73,7 +73,7 @@ Each concept, its rules, and its constants are defined in exactly one package.
 `config.FromEnv` (env is passed in as a lookup function), `config.ParseMap`,
 `config.Map.Plan`, `decrypt.FormatForPath`, `decrypt.ParseIdentities`,
 `decrypt.Decrypt`, `writer.ParseName`, `writer.ParseReservedName`,
-`writer.ParseMode`, `writer.Stale`, `writer.MountType`.
+`writer.ParseMode`, `writer.Stale`.
 
 **I/O shell** (thin; executes decisions the core made):
 `writer.Open`, `writer.Dir.*`, `health.NewMarker`, `health.Marker.*`,
@@ -97,7 +97,6 @@ const ReservedPrefix = ".sops-sidecar" // names starting with this belong to the
 const DefaultMode Mode = 0o400         // mode when neither the map file entry nor its defaults set one
 const KeepID = -1                      // UID/GID value meaning "leave unchanged" (the sidecar's own id); the built-in default
 const MaxID = 1<<32 - 2                // largest uid/gid accepted (32-bit ids; 2^32-1 means "unchanged" to chown)
-const ProcMounts = "/proc/mounts"      // mount table consulted by CheckTmpfs in production
 
 type Name struct{ /* unexported */ }   // a validated single-element file name; zero value is invalid
 func ParseName(s string) (Name, error)          // rejects "", ".", "..", any '/' or '\\', NUL, len > 255, and ReservedPrefix-prefixed names
@@ -119,15 +118,11 @@ type File struct {
 }
 
 func Stale(prev, next []Name) []Name            // names in prev absent from next, in prev's order
-func MountType(mounts []byte, dir string) (string, error)
-    // fs type of the mount whose mount point is the longest path-prefix of dir
-    // (dir absolute and clean; mount points decoded from /proc/mounts octal
-    // escapes \040 \011 \012 \134); error if no line matches or a line is malformed
 
 type Dir struct{ /* *os.Root + path */ }
 func Open(path string) (*Dir, error)            // path must be absolute; refuses a symlink or non-directory; opens an os.Root
 func (d *Dir) Close() error
-func (d *Dir) CheckTmpfs(mountsFile string) error // reads mountsFile, errors unless MountType(...) == "tmpfs"
+func (d *Dir) CheckTmpfs() error                // fstatfs (golang.org/x/sys/unix) on the open dir; errors unless TMPFS_MAGIC; always errors off Linux
 func (d *Dir) Write(f File) error
     // atomic, all via os.Root: create ReservedPrefix+"-tmp-<random hex>" with
     // O_CREATE|O_EXCL|O_WRONLY 0600 → write Data → Sync → Chown(Owner) → Chmod(Mode)

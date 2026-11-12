@@ -82,11 +82,10 @@ func ParseMode(s string) (Mode, error) {
 	if len(s) == 4 && s[0] == '0' {
 		digits = s[1:]
 	}
-	if len(digits) != 3 || strings.Trim(digits, "01234567") != "" {
-		return 0, fmt.Errorf("mode %q: want three octal digits such as 0400", s)
-	}
+	// With an explicit base, ParseUint accepts only digits of that base: no
+	// sign, prefix, or underscores.
 	v, err := strconv.ParseUint(digits, 8, 32)
-	if err != nil {
+	if len(digits) != 3 || err != nil {
 		return 0, fmt.Errorf("mode %q: want three octal digits such as 0400", s)
 	}
 	return Mode(v), nil

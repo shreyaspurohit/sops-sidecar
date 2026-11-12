@@ -14,6 +14,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Fail-closed startup: refuses a non-tmpfs output dir, `SOPS_AGE_KEY` in the environment, nested values, unsafe paths and a wrong key.
 - Secret values are never logged or included in errors, verified by canary tests.
 - Structured JSON logs on stderr (one object per line), level set by `LOG_LEVEL`.
+- The tmpfs check asks the kernel (`fstatfs`) for the output dir's file system instead of parsing `/proc/mounts`.
 - Refuses SOPS files encrypted with `mac_only_encrypted`, whose unencrypted values would be unauthenticated.
 - Adopts secret files left in the output dir by an earlier run, so keys removed while the sidecar was stopped are deleted at the next start.
 - Example tmpfs volumes are mounted `nosuid,nodev,noexec`.
