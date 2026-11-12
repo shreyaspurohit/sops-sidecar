@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -214,10 +215,10 @@ func TestPlanWithoutMapFile(t *testing.T) {
 			t.Errorf("Ignored = %d, want 0", plan.Ignored)
 		}
 	})
-	t.Run("no secrets gives an empty plan", func(t *testing.T) {
+	t.Run("no secrets is refused", func(t *testing.T) {
 		plan, err := config.Map{}.Plan(nil)
-		if err != nil {
-			t.Fatal(err)
+		if !errors.Is(err, config.ErrNoSecrets) {
+			t.Fatalf("Plan error = %v, want ErrNoSecrets", err)
 		}
 		if len(plan.Entries) != 0 {
 			t.Errorf("entries = %v, want none", plan.Entries)

@@ -13,7 +13,7 @@ Why it is different:
 3. **Recreate-safe.** A long-running sidecar, not a run-once init container, so the tmpfs volume stays populated when another container is recreated (for example by Watchtower or `docker compose up -d`).
 4. **Files, not env vars.** Pairs with the `*_FILE` convention (`POSTGRES_PASSWORD_FILE`, ...). Nothing secret shows in `docker inspect`.
 5. **Per-file owner and mode.** Each secret file can be chowned and chmodded for the consuming container's user.
-6. **Fails closed.** Wrong key, bad file, or a non-tmpfs output dir: it refuses, stays unhealthy, and dependent services do not start.
+6. **Fails closed.** Wrong key, bad file, a SOPS file with no keys, or a non-tmpfs output dir: it refuses, stays unhealthy, and dependent services do not start.
 
 Tested on Compose v2.20.0 and the latest release. It is meant for appliance builds such as Synology Container Manager and Portainer, which often ship older Compose, but it has not yet been tested on them.
 
@@ -120,7 +120,7 @@ Every default lives in this table. Paths must be absolute. An empty value is the
 | *(file default)* owner | unchanged | Each secret file keeps the sidecar's uid and gid when the map file sets none (map `uid`/`gid` override it). |
 | *(ready marker)* | `OUTPUT_DIR/.sops-sidecar-ready`, mode `0444` | Exists only while the last load succeeded. |
 
-Without a map file, every top-level key becomes `OUTPUT_DIR/<key>` with the file defaults from the table.
+Without a map file, every top-level key becomes `OUTPUT_DIR/<key>` with the file defaults from the table. A SOPS file with no top-level keys is refused. On reload, the files from the last good load stay in place and the sidecar reports not ready.
 
 ### Map file
 

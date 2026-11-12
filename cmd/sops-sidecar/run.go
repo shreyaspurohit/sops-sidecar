@@ -137,6 +137,12 @@ func (s *sidecar) apply() error {
 	if err != nil {
 		return err
 	}
+	// load never returns an empty plan without an error; checking again here,
+	// where the damage would happen, keeps a future change from turning an
+	// empty plan into "remove every secret and report ready".
+	if len(plan.Entries) == 0 {
+		return config.ErrNoSecrets
+	}
 	next := make([]writer.Name, 0, len(plan.Entries))
 	for _, e := range plan.Entries {
 		if err := s.write(e); err != nil {

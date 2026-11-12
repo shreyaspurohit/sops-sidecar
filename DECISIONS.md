@@ -106,3 +106,7 @@ Every non-test Go file was reviewed for code that a maintained, open-source libr
 - **Kept: the environment config reader.** `caarlos0/env` (MIT) would replace about 40 lines, but the absolute-path checks, "map file set explicitly" and the `SOPS_AGE_KEY` refusal would still be custom.
 - **Kept: the `LOG_LEVEL` parsing.** `slog.Level.UnmarshalText` also accepts offsets such as `info+1`, which the config contract deliberately refuses.
 - **Kept: the CLI dispatch.** Four subcommands with no flags do not justify cobra or urfave/cli.
+
+## Empty plans are refused
+
+A load that yields no files (a SOPS file with no top-level keys) is an error, `config.ErrNoSecrets`, not an empty plan. Applying an empty plan would remove every secret file as stale and then set the ready marker, so consumers would start healthy with no secrets. `Map.Plan` refuses it, and `apply` checks again just before writing, so that no future change to `load` can reintroduce that failure. Deliberately empty SOPS files are not a supported use case. The value-type `Plan` is kept (zero value plus error, Go convention). The guard sits where the damage would happen, rather than in a `*Plan`/`nil` return.

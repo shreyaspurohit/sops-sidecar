@@ -111,6 +111,7 @@ func failureCases() []failureCase {
 	return []failureCase{
 		{"SOPS_AGE_KEY present", true, func(_ *testing.T, f *fixture) { f.env[config.EnvAgeKey] = canary }, "SOPS_AGE_KEY"},
 		{"invalid log level", true, func(_ *testing.T, f *fixture) { f.env[config.EnvLogLevel] = "loud" }, "config failed"},
+		{"SOPS file without keys", true, func(_ *testing.T, f *fixture) { f.encrypt() }, "no secrets to write"},
 		{"missing SOPS file", true, func(t *testing.T, f *fixture) {
 			if err := os.Remove(f.path("secrets.sops.yaml")); err != nil {
 				t.Fatal(err)

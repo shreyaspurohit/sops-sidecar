@@ -14,6 +14,11 @@ import (
 	"github.com/shreyaspurohit/sops-sidecar/internal/writer"
 )
 
+// ErrNoSecrets is returned for a plan with no files to write. An empty result
+// is refused rather than applied: applying it would remove every secret file
+// and still report ready.
+var ErrNoSecrets = errors.New("no secrets to write: the SOPS file holds no top-level keys")
+
 // Map is a parsed map file. The zero Map means "no map file": every key is
 // written under its own name with the built-in defaults.
 type Map struct {
@@ -208,6 +213,9 @@ func (m Map) Plan(secrets []decrypt.Secret) (Plan, error) {
 			return Plan{}, fmt.Errorf("key %q is listed in the map file but missing from the SOPS file", e.key)
 		}
 		plan.Entries = append(plan.Entries, Entry{Key: e.key, File: writer.File{Name: e.name, Data: bytes.Clone(v), Mode: e.mode, Owner: e.owner}})
+	}
+	if len(plan.Entries) == 0 {
+		return Plan{}, ErrNoSecrets
 	}
 	plan.Ignored = len(secrets) - len(entries)
 	slices.SortFunc(plan.Entries, func(a, b Entry) int { return strings.Compare(a.File.Name.String(), b.File.Name.String()) })

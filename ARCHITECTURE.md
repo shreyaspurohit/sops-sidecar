@@ -247,6 +247,9 @@ func (m Map) Plan(secrets []Secret) (Plan, error)   // secrets are []decrypt.Sec
     // zero Map: every secret, name = writer.ParseName(key) (error naming the key
     // if invalid). Parsed Map: only listed keys; a listed key missing from
     // secrets is an error naming it; unlisted keys counted in Ignored.
+    // A plan with no entries is ErrNoSecrets, never an empty Plan; cmd's apply
+    // re-checks before writing so an empty plan can never remove every file.
+var ErrNoSecrets error
 ```
 
 ### `internal/health`

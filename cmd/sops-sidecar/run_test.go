@@ -210,6 +210,28 @@ func TestServeFailedReloadThenRecovery(t *testing.T) {
 	}
 }
 
+// A reload whose SOPS file has lost every key must fail and keep the files
+// from the last good load, never remove them all and report ready.
+func TestServeEmptyReloadKeepsFiles(t *testing.T) {
+	f := newFixture(t)
+	r := f.start()
+	r.waitLogged("secrets written", 1)
+
+	f.encrypt()
+	r.reloadAndWait("reload failed")
+	if r.ready() {
+		t.Error("ready after a reload with no secrets")
+	}
+	for _, name := range []string{"db_password", "api_token"} {
+		if _, err := os.Stat(filepath.Join(f.out, name)); err != nil {
+			t.Errorf("%s removed by a reload with no secrets: %v", name, err)
+		}
+	}
+	if code := r.stop(); code != exitOK {
+		t.Errorf("exit = %d", code)
+	}
+}
+
 // A reload that fails after writing some files must still let a later
 // reload remove the files it wrote.
 func TestServePartialReloadTracksWrittenFiles(t *testing.T) {
