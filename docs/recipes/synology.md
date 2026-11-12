@@ -16,7 +16,28 @@ The age key decrypts everything. Do not keep it in the project folder, which may
       - /volume1/<secrets-share>/age.key:/config/age.key:ro
 ```
 
-Set the file's owner to the sidecar's uid and its mode to 0400 (over SSH: `sudo chown 0:0 age.key && sudo chmod 0400 age.key` for the postgres example, `65532:65532` for generic-app). With all capabilities dropped the sidecar cannot read a key it does not own. Exclude that shared folder from backups and from sharing.
+Exclude that shared folder from backups and from sharing.
+
+### Who must own `age.key`
+
+`age.key` must be owned by the user the sidecar process runs as, with mode `0400`. Here is why, and how to find that user.
+
+**Why ownership matters.** The examples run the sidecar with `cap_drop: [ALL]`. That removes the capabilities that normally let root read any file regardless of permissions (`CAP_DAC_OVERRIDE` and `CAP_DAC_READ_SEARCH`). So inside the container even root reads a file only through its normal owner, group and mode bits. A `0400` file is readable by its owner and nobody else, so the owner has to be the sidecar's own uid. The key is bind-mounted, so the container sees the uid that the file has on the NAS.
+
+**Which uid the sidecar runs as.** Look at the `user:` line of the `secrets` service in your `compose.yaml`:
+
+| Your compose file | Sidecar runs as | Command |
+|---|---|---|
+| `user: "0:0"` (examples/postgres) | root, uid 0 | `sudo chown 0:0 age.key` |
+| `user: "65532:65532"` (examples/generic-app) | uid 65532 | `sudo chown 65532:65532 age.key` |
+| no `user:` line | the image default, uid 65532 | `sudo chown 65532:65532 age.key` |
+| any other `user: "U:G"` | uid U | `sudo chown U:G age.key` |
+
+Then, in every case: `sudo chmod 0400 age.key`. Check with `ls -ln age.key`. The third and fourth columns are the numeric uid and gid, and the mode should read `-r--------`.
+
+**Why the postgres example runs as root.** The postgres image reads its password as its own user, uid 70, so the map file asks the sidecar to `chown` the secret file to `70:70`. Changing a file's owner needs `CAP_CHOWN`, and Docker only gives added capabilities (`cap_add`) to processes running as root. So that example runs the sidecar as `user: "0:0"` with only `CHOWN` and `FOWNER` added back, and `age.key` must therefore be owned by uid 0. The generic-app example needs no `chown`, so it keeps the image's non-root uid 65532 with no capabilities at all, and its key belongs to 65532.
+
+**On the NAS.** Your DSM administrator account is not uid 0, which is why the commands use `sudo`. Once the key belongs to root or 65532 you can no longer read it yourself. Keep your personal copy of the key, which `sops edit` uses, somewhere else, for example `~/.config/sops/age/keys.txt` on your workstation.
 
 ## Start the stack at boot
 
