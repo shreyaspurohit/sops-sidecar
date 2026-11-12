@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,7 +105,8 @@ func TestServeWritesFilesByteExact(t *testing.T) {
 		t.Errorf("exit = %d", code)
 	}
 	log := r.log.String()
-	for _, want := range []string{"tmpfs check disabled", "files=2", "ignored=0", "secret written", "shutting down"} {
+	assertJSONLines(t, log)
+	for _, want := range []string{"tmpfs check disabled", `"files":2`, `"ignored":0`, "secret written", "shutting down"} {
 		if !strings.Contains(log, want) {
 			t.Errorf("log lacks %q:\n%s", want, log)
 		}
@@ -335,4 +337,26 @@ func TestServeAdoptsFilesFromEarlierRun(t *testing.T) {
 		t.Error("not ready after the first load")
 	}
 	r.stop()
+}
+
+// assertJSONLines fails unless every non-empty line of log is a JSON object
+// with the standard slog time, level and msg keys.
+func assertJSONLines(t *testing.T, log string) {
+	t.Helper()
+	for line := range strings.Lines(log) {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Errorf("log line is not JSON: %v\n%s", err, line)
+			continue
+		}
+		for _, k := range []string{"time", "level", "msg"} {
+			if _, ok := rec[k]; !ok {
+				t.Errorf("log line lacks %q: %s", k, line)
+			}
+		}
+	}
 }

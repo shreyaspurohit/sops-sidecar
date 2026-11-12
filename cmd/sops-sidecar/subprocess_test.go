@@ -26,7 +26,9 @@ type child struct {
 func (f *fixture) spawn(args ...string) *child {
 	f.t.Helper()
 	c := &child{cmd: exec.Command(os.Args[0], args...)}
-	c.cmd.Env = []string{testMainEnv + "=1"}
+	// A coverage-instrumented test binary warns on stderr when GOCOVERDIR is
+	// unset; give the child a scratch dir so stderr holds only the logs.
+	c.cmd.Env = []string{testMainEnv + "=1", "GOCOVERDIR=" + f.t.TempDir()}
 	for k, v := range f.env {
 		c.cmd.Env = append(c.cmd.Env, k+"="+v)
 	}
@@ -132,6 +134,7 @@ func TestSubprocessRunSignals(t *testing.T) {
 	if code := c.wait(t); code != exitOK {
 		t.Errorf("exit = %d, stderr = %s", code, c.stderr.String())
 	}
+	assertJSONLines(t, c.stderr.String())
 	if !strings.Contains(c.stderr.String(), "shutting down") {
 		t.Errorf("stderr = %s", c.stderr.String())
 	}

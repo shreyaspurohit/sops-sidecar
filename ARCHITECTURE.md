@@ -331,7 +331,7 @@ at the default path → zero `Map`; absent when `MapRequired` → error.
 
 ## Logging
 
-`log/slog` `TextHandler` on stderr, level from `LOG_LEVEL` (default `info`).
+`log/slog` `JSONHandler` on stderr (one JSON object per line), level from `LOG_LEVEL` (default `info`).
 Never logs a value. Key names and file names appear only at `debug`.
 
 | Level | Message | Attributes |

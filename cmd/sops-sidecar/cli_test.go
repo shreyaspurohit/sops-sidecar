@@ -184,6 +184,7 @@ func TestRunFailures(t *testing.T) {
 				if !strings.Contains(stderr, tt.want) {
 					t.Errorf("stderr = %q, want it to contain %q", stderr, tt.want)
 				}
+				assertJSONLines(t, stderr)
 				if _, err := os.Stat(filepath.Join(f.out, health.MarkerName)); err == nil {
 					t.Error("ready marker exists after a failed run")
 				}

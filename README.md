@@ -114,7 +114,7 @@ Every default lives in this table. Paths must be absolute. An empty value is the
 | `OUTPUT_DIR` | `/secrets` | Where secret files are written. Must be tmpfs. |
 | `ALLOW_NON_TMPFS` | `false` | Skip the tmpfs check. For tests only; logs a warning. |
 | `WIPE_ON_EXIT` | `false` | Remove written files and the ready marker on `SIGTERM`/`SIGINT`. |
-| `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. Values are never logged at any level. |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. Logs go to stderr as JSON, one object per line. Values are never logged at any level. |
 | `SOPS_AGE_KEY` | not supported | Refused at startup: environment variables leak through `docker inspect`. Mount the key as a file. |
 | *(file default)* mode | `0400` | Mode of each secret file when the map file sets none (map `defaults` or per-file `mode` override it). |
 | *(file default)* owner | unchanged | Each secret file keeps the sidecar's uid and gid when the map file sets none (map `uid`/`gid` override it). |

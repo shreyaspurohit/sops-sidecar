@@ -83,9 +83,10 @@ func version() string {
 	return info.Main.Version
 }
 
-// newLogger returns a text logger on w that drops records below level.
+// newLogger returns a JSON logger on w, one object per line, that drops
+// records below level.
 func newLogger(w io.Writer, level slog.Level) *slog.Logger {
-	return slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{Level: level}))
+	return slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level}))
 }
 
 // logFailure logs err at ERROR under msg and returns exitFailure.
