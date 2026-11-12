@@ -15,7 +15,7 @@ One line each: decision — reason. Newest sections at the bottom.
 
 ## Language and tooling
 
-- Go (1.27.3, current stable per <https://go.dev/dl/?mode=json>) — sops and age are Go libraries (in-process decrypt), CGO_ENABLED=0 gives a static binary for a distroless image, and it is the ecosystem's language.
+- Go (1.27.4, current stable per <https://go.dev/dl/?mode=json>) — sops and age are Go libraries (in-process decrypt), CGO_ENABLED=0 gives a static binary for a distroless image, and it is the ecosystem's language.
 - All CLI tools pinned in `.tool-versions` and installed with asdf 0.20.2 — single source of truth for laptop and CI.
 - `zizmor` has no asdf plugin → fallback 3: `uvx zizmor@<version>` with `uv` installed by asdf; version lives once in `scripts/zizmor.sh`, tracked by a Renovate `customManagers` regex.
 - `deadcode`, `govulncheck`, `staticcheck` → `tool` directives in `go.mod`, run with `go tool` — project-local and version-pinned.
@@ -90,3 +90,7 @@ One line each: decision — reason. Newest sections at the bottom.
 - Security S7 (examples use the floating `:0` sidecar tag) — deliberate so users receive fixes; docs/security-model.md advises digest pinning and shows `cosign verify`.
 - Security S9–S12 (informational: partial set after ENOSPC is reported not ready; no memory zeroing/core-dump limit; sops audit init; compose checksum from the same release; zizmor not hash-pinned) — accepted as documented limitations; no change.
 - Round 1, Codex #6 (part) — non-regular input files are now refused, but input reads are not made cancellable via context: with only regular files accepted, a read cannot block indefinitely.
+
+## Release attestations skipped on private repos
+
+The two `actions/attest-build-provenance` steps in `release.yml` run only when the repository is public (`!github.event.repository.private`). GitHub offers artifact attestations for private repositories only on Enterprise Cloud, so a release from the private pre-launch repo would otherwise fail after the release and image were already published. cosign keyless signing still runs either way.

@@ -56,10 +56,14 @@ jobs:
           digest="$(docker buildx imagetools inspect "${IMAGE}:${REF_NAME#v}" --format '{{json .Manifest}}' | jq -r .digest)"
           echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
       - name: attest archives
+        # Artifact attestations are unavailable for private repos on non-Enterprise plans.
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-checksums: dist/checksums.txt
       - name: attest image
+        # Artifact attestations are unavailable for private repos on non-Enterprise plans.
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE }}
