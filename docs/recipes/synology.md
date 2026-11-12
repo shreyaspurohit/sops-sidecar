@@ -1,6 +1,6 @@
 # Recipe: Synology Container Manager
 
-How to run a sops-sidecar stack on a Synology NAS with Container Manager. Compose there may be v2.20.x, which is the version this project is tested against.
+How to run a sops-sidecar stack on a Synology NAS with Container Manager. Compose there may be v2.20.x, the minimum version this project is tested against. This recipe has not yet been tried on a real NAS; please open an issue if a step does not match what you see.
 
 ## Project setup
 

@@ -1,6 +1,6 @@
 # Comparison with other tools
 
-Several good tools exist in this space. This page states what each one needs and how its secrets reach a container, so you can choose. Facts were checked against each project's current README, source, or official docs in November 2026; links are inline.
+Several good tools exist in this space. This page states what each one needs and how its secrets reach a container, so you can choose. Facts were checked against each project's current README, source, or official docs in November 2026; links are inline. Rotation entries marked * are inferred from how the tool delivers secrets, not stated in its docs.
 
 ## At a glance
 
@@ -8,9 +8,9 @@ Several good tools exist in this space. This page states what each one needs and
 |---|---|---|---|---|
 | `sops-sidecar` | A container in the stack | Docker and Compose v2.20.0+ | Files in a tmpfs named volume, mounted read-only | `SIGHUP`, files replaced in place |
 | [`compose-sops`](https://github.com/greboid/compose-sops) | Host binary run by Compose (provider service) | Compose 2.36+ and the `compose-sops` binary on the host `PATH` of whatever runs Compose | Files on host tmpfs, bind-mounted per service through Compose `secrets:` | `down` then `up` (a changed secret fails `up`) |
-| [`docker-vals`](https://github.com/estie-inc/docker-vals) (v0.2.0) | Docker CLI plugin run by Compose (provider service) | Compose v5.2.0+, the plugin in `~/.docker/cli-plugins`, backend credentials on the host | Environment variables | Recreate the consumers |
-| [Dockform](https://github.com/gcstr/dockform) (v0.10.0) | CLI on the operator's machine or CI | `dockform`, `sops`, and `age` (or GnuPG) where it runs | Values handed to Compose for interpolation, so wherever the compose file puts them (typically `environment:`) | Re-run `dockform apply` |
-| [`sopsbox`](https://github.com/brittonr/sopsbox) | CLI on the host, before `compose up` | The `sopsbox` binary on the host | Files in `/run/secrets` on the host, which you mount yourself | Re-run it, then restart or recreate consumers |
+| [`docker-vals`](https://github.com/estie-inc/docker-vals) (v0.2.0) | Docker CLI plugin run by Compose (provider service) | Compose v5.2.0+, the plugin in `~/.docker/cli-plugins`, backend credentials on the host | Environment variables | Recreate the consumers* |
+| [Dockform](https://github.com/gcstr/dockform) (v0.10.0) | CLI on the operator's machine or CI | `dockform`, `sops`, and `age` (or GnuPG) where it runs | Values handed to Compose for interpolation, so wherever the compose file puts them (typically `environment:`) | Re-run `dockform apply`* |
+| [`sopsbox`](https://github.com/brittonr/sopsbox) | CLI on the host, before `compose up` | The `sopsbox` binary on the host | Files in `/run/secrets` on the host, which you mount yourself | Re-run it, then restart or recreate consumers* |
 | [Swarm secrets](https://docs.docker.com/engine/swarm/secrets/) | Docker Engine in swarm mode | Swarm mode and services (`docker stack deploy`) | Files on tmpfs at `/run/secrets/<name>` | Secrets are immutable: create a new one and `service update --secret-rm/--secret-add` |
 | [`sops exec-env` / `exec-file`](https://getsops.io/docs/usage/advanced/) | Host shell | `sops` on the host | Environment of a child process, or a FIFO or temp file path | Re-run the command |
 
@@ -21,7 +21,7 @@ Several good tools exist in this space. This page states what each one needs and
 - **Per-service grants.** Each consumer sees only the secrets it lists under `secrets:`. Every container that mounts the `sops-sidecar` volume sees every file in it.
 - **Key protection at rest.** An optional `setup` command seals the age key with systemd-creds (host- or TPM-bound) and decrypts it into a runtime tmpfs at boot.
 
-The costs are a newer Compose, a binary to install and keep current on the host, and the fact that it only acts when the Compose that runs your stack can find that binary. A web UI or a containerised manager such as Portainer runs its own Compose and does not see binaries you installed in your shell. Rotation needs `down` and `up`, because Compose file secrets are single-file bind mounts that keep the old inode.
+The costs are a newer Compose, a binary to install and keep current on the host, and the fact that it only acts when the Compose that runs your stack can find that binary. A web UI or a containerised manager such as Portainer runs its own Compose, which may not see binaries you installed in your shell (not tested here). Rotation needs `down` and `up`, because Compose file secrets are single-file bind mounts that keep the old inode.
 
 **`docker-vals`.** A provider service too, but its job is different: it resolves `ref+<backend>://` references through [vals](https://github.com/helmfile/vals) (SOPS, Vault, AWS SSM, GCP Secret Manager, 1Password, and more) and injects the values as environment variables. Pick it when your secrets live in a secret manager rather than a SOPS file in the repo. Environment variables show in `docker inspect`, which [Docker's own secrets guide](https://docs.docker.com/compose/how-tos/use-secrets/) warns against for passwords.
 
@@ -35,7 +35,7 @@ The costs are a newer Compose, a binary to install and keep current on the host,
 
 ## Where `sops-sidecar` fits
 
-It needs only Docker and plain Compose from v2.20.0. There is nothing to install or keep current on the host. It works the same whether Compose runs from your shell, a web UI, or Portainer. Secrets stay as files on tmpfs and never appear in `docker inspect`. They survive recreation of the consuming containers, and `SIGHUP` reloads them in place.
+It needs only Docker and plain Compose from v2.20.0. There is nothing to install or keep current on the host. Because it is an ordinary container, nothing depends on how Compose is launched, from a shell, a web UI, or Portainer; so far it has been tested only with Compose run from a shell. Secrets stay as files on tmpfs and never appear in `docker inspect`. They survive recreation of the consuming containers, and `SIGHUP` reloads them in place.
 
 What it trades away:
 

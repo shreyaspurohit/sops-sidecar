@@ -15,7 +15,7 @@ Why it is different:
 5. **Per-file owner and mode.** Each secret file can be chowned and chmodded for the consuming container's user.
 6. **Fails closed.** Wrong key, bad file, or a non-tmpfs output dir: it refuses, stays unhealthy, and dependent services do not start.
 
-Tested on Compose v2.20+, including appliance builds such as Synology Container Manager and Portainer.
+Tested on Compose v2.20.0 and the latest release. It is meant for appliance builds such as Synology Container Manager and Portainer, which often ship older Compose, but it has not yet been tested on them.
 
 See [docs/comparison.md](docs/comparison.md) for how this relates to other tools.
 
