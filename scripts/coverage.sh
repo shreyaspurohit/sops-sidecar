@@ -39,8 +39,9 @@ awk -v pkg_min="${PKG_MIN}" -v total_min="${TOTAL_MIN}" -v enforce="${enforce}" 
   END {
     fail = 0
     for (p in pkg_all) {
-      pct = 100 * pkg_hit[p] / pkg_all[p]
       name = p; sub(module, "", name)
+      if (pkg_all[p] == 0) { printf "n/a  %-28s (no statements)\n", name; continue }
+      pct = 100 * pkg_hit[p] / pkg_all[p]
       gate = (index(name, "internal/") == 1) ? pkg_min : 0
       status = (pct + 1e-9 >= gate) ? "ok  " : "FAIL"
       if (status == "FAIL") fail = 1

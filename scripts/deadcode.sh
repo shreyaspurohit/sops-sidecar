@@ -10,7 +10,13 @@ readonly ALLOWED='^internal/decrypt/(identities\.go:[0-9:]+: unreachable func: I
 
 cd "$(dirname "$0")/.."
 report="$(go tool deadcode -test=false ./cmd/sops-sidecar)"
-unexpected="$(grep -Ev "${ALLOWED}" <<<"${report}" || true)"
+# grep exits 1 when every line is allowed (fine) and 2 on a bad regex or I/O error (fail).
+status=0
+unexpected="$(grep -Ev -- "${ALLOWED}" <<<"${report}")" || status=$?
+if (( status > 1 )); then
+  echo "deadcode.sh: grep failed (status ${status}); check ALLOWED" >&2
+  exit "${status}"
+fi
 if [[ -n "${unexpected}" ]]; then
   echo "unreachable functions:" >&2
   echo "${unexpected}" >&2
