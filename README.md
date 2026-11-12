@@ -72,6 +72,36 @@ Each file is replaced atomically, so a reader never sees a partial file. The set
 - The output dir belongs to the sidecar. At startup it adopts the regular files already there, so the files of keys removed while it was stopped are deleted by the first load. Do not put anything else in that volume.
 - The examples mount the tmpfs with `nosuid,nodev,noexec` in addition to the size and mode options.
 
+## Which example do I start from?
+
+It depends on which user your app reads the secret file as. With the default mode `0400`, only the file's owner can read it.
+
+1. **Find the app's uid.**
+   - Check the image docs for "runs as user ...", `PUID`/`PGID`, or a note about `*_FILE` variables.
+   - Run `docker image inspect -f '{{.Config.User}}' <image>`. An empty result means the image starts as root.
+   - Some entrypoints start as root and switch to a service user before reading `*_FILE`. Postgres starts as root, then reads the password as uid 70. The docs or the entrypoint script tell you which applies.
+   - When unsure, start with generic-app. A "Permission denied" error on the secret file in the app's logs means you need one of the other setups.
+2. **Pick the setup.**
+
+| The app reads secrets as | Start from | Sidecar runs as |
+|---|---|---|
+| root (uid 0), or uid 65532 | [examples/generic-app](examples/generic-app) | `65532:65532`, no capabilities |
+| one other non-root uid, e.g. 70 or 1000 | generic-app, with the uid changed (see below) | that uid, no capabilities |
+| several different uids from one sidecar | [examples/postgres](examples/postgres), with `uid`/`gid` per file in the map | `0:0` with only `CHOWN` and `FOWNER` |
+
+Root in an ordinary container can read a `0400` file it does not own, because Docker's default capabilities include `CAP_DAC_OVERRIDE`. That is why a root app works with generic-app as it is. It stops working if the app's container drops capabilities.
+
+**Running the sidecar as the app's uid.** When every consumer uses the same non-root uid, run the sidecar as that uid. The files are then owned by it with no `chown` and no root. Starting from generic-app, with uid 70 as an example:
+
+- set `user: "70:70"` on the sidecar;
+- put `uid=70,gid=70` in the tmpfs volume's `o:` options;
+- make `age.key` owned by `70:70` with mode `0400`;
+- leave `uid`/`gid` out of the map file.
+
+This setup has been tested with the postgres image. The postgres example itself uses the root setup instead, to show per-file ownership.
+
+**Why the root setup needs root.** Giving a file to another user needs `CAP_CHOWN`, and Docker grants capabilities added with `cap_add` only to processes running as root. In every setup, `age.key` must belong to the uid the sidecar runs as, with mode `0400`: with all capabilities dropped, even root can read only files it owns.
+
 ## Configuration
 
 Every default lives in this table. Paths must be absolute. An empty value is the same as unset.
