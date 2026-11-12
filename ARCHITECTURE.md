@@ -217,7 +217,8 @@ type Config struct {
     LogLevel      slog.Level // default slog.LevelInfo
 }
 
-func FromEnv(lookup func(string) (string, bool)) (Config, error)
+type LookupFunc func(name string) (string, bool) // os.LookupEnv in production; a map in tests
+func FromEnv(lookup LookupFunc) (Config, error)
     // unset or empty → default. Booleans via strconv.ParseBool; LOG_LEVEL via
     // a case-insensitive match of debug|info|warn|error (level offsets such as `info+1` are refused). Path env vars must be
     // absolute. SOPS_AGE_KEY present → error explaining that env vars are visible
@@ -293,7 +294,7 @@ const (
 const maxInputBytes = 1 << 20 // per input file; larger files are refused
 
 func main() // os.Exit(cli(os.Args[1:], os.LookupEnv, os.Stdout, os.Stderr)) and nothing else
-func cli(args []string, lookup func(string) (string, bool), stdout, stderr io.Writer) int
+func cli(args []string, lookup config.LookupFunc, stdout, stderr io.Writer) int
 ```
 
 Subcommands (`flag` + `switch`, no framework):

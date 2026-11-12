@@ -29,7 +29,7 @@ type sidecar struct {
 // runCommand serves until SIGTERM or SIGINT and reloads on SIGHUP. All three
 // signals are handled explicitly because the process runs as PID 1, where the
 // kernel applies no default signal actions.
-func runCommand(lookup func(string) (string, bool), stderr io.Writer) int {
+func runCommand(lookup config.LookupFunc, stderr io.Writer) int {
 	cfg, err := config.FromEnv(lookup)
 	if err != nil {
 		return logFailure(newLogger(stderr, slog.LevelInfo), "config failed", err)
@@ -198,7 +198,7 @@ func (s *sidecar) shutdown() int {
 }
 
 // healthCommand reports readiness through its exit code.
-func healthCommand(lookup func(string) (string, bool), stderr io.Writer) int {
+func healthCommand(lookup config.LookupFunc, stderr io.Writer) int {
 	cfg, err := config.FromEnv(lookup)
 	if err != nil {
 		return logFailure(newLogger(stderr, slog.LevelInfo), "config failed", err)
@@ -210,7 +210,7 @@ func healthCommand(lookup func(string) (string, bool), stderr io.Writer) int {
 }
 
 // checkCommand prints the sorted keys that run would write, writing no files.
-func checkCommand(lookup func(string) (string, bool), stdout, stderr io.Writer) int {
+func checkCommand(lookup config.LookupFunc, stdout, stderr io.Writer) int {
 	cfg, err := config.FromEnv(lookup)
 	if err != nil {
 		return logFailure(newLogger(stderr, slog.LevelInfo), "config failed", err)

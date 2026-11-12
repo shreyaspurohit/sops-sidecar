@@ -13,7 +13,7 @@ import (
 // canary stands in for secret data; it must never appear in an error.
 const canary = "CANARY-7f3a9c-SECRET"
 
-func lookupFrom(env map[string]string) func(string) (string, bool) {
+func lookupFrom(env map[string]string) config.LookupFunc {
 	return func(k string) (string, bool) {
 		v, ok := env[k]
 		return v, ok

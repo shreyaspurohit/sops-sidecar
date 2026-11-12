@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/shreyaspurohit/sops-sidecar/internal/config"
 	"github.com/shreyaspurohit/sops-sidecar/internal/decrypt"
 )
 
@@ -46,7 +47,7 @@ func main() {
 // cli runs one invocation and returns the process exit code. It reads the
 // environment only through lookup and writes only to stdout and stderr; sops'
 // own loggers are silenced because they can echo file content.
-func cli(args []string, lookup func(string) (string, bool), stdout, stderr io.Writer) int {
+func cli(args []string, lookup config.LookupFunc, stdout, stderr io.Writer) int {
 	decrypt.DisableSOPSLogs()
 	if len(args) == 0 {
 		return runCommand(lookup, stderr)
