@@ -31,7 +31,7 @@ func NewIdentity(t testing.TB) (keyFile []byte, recipient string) {
 }
 
 // NewHybridIdentity is NewIdentity for a post-quantum hybrid age identity
-// (ML-KEM-768 + X25519), the kind `age-keygen -pq` creates.
+// (ML-KEM-768 with X25519), the kind `age-keygen -pq` creates.
 func NewHybridIdentity(t testing.TB) (keyFile []byte, recipient string) {
 	t.Helper()
 	id, err := age.GenerateHybridIdentity()

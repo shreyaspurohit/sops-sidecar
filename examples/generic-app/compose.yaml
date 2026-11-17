@@ -2,29 +2,29 @@
 # sidecar running as its default non-root user (uid 65532) and no added
 # capabilities.
 #
-# How this avoids root and chown: the tmpfs volume is created owned by uid/gid
-# 65532 (see uid= and gid= in `o:` below), so the sidecar can write to it, and
-# the sidecar leaves each file owned by itself (mode 0400). The app runs as the
-# same uid, so it can read the files. There is no secrets.map.yaml: every
-# top-level key of secrets.sops.yaml becomes /run/secrets/<key>. If your app
-# runs as a different uid, use ../postgres instead (root sidecar + CHOWN/FOWNER).
+# The tmpfs volume is created owned by uid/gid 65532 (see uid= and gid= in `o:`
+# below), so the sidecar can write to it without root or chown, and it leaves
+# each file owned by itself (mode 0400). The app runs as the same uid, so it
+# can read the files. Without a secrets.map.yaml, every top-level key of
+# secrets.sops.yaml becomes /run/secrets/<key>. If your app runs as a different
+# uid, use ../postgres instead (root sidecar with CHOWN and FOWNER).
 #
-# With every capability dropped the sidecar cannot bypass file permissions, so
-# age.key must be owned by uid 65532 and readable only by it:
+# With every capability dropped, the sidecar cannot override file permissions,
+# so age.key must be owned by uid 65532 and readable only by it:
 # `sudo chown 65532:65532 age.key && sudo chmod 0400 age.key`.
 #
 # Setup: see secrets.sops.yaml.example, then `docker compose up -d` and
 # `docker compose logs app`.
 #
-# SOPS_SIDECAR_IMAGE overrides the sidecar image (used by the integration
-# tests to run a locally built image); it defaults to the released major tag.
+# SOPS_SIDECAR_IMAGE overrides the sidecar image (the integration tests use it
+# to run a locally built image) and defaults to the released major tag.
 #
 # Inputs are mounted as single files, and a single-file bind mount follows the
-# inode. After changing secrets.sops.yaml, rewrite it in place (as
-# `sops edit` and `sops encrypt -i` do), never replace it with a new file, then
-# run `docker compose kill -s HUP secrets` for the sidecar to reload it.
+# inode. After changing secrets.sops.yaml, rewrite it in place (as `sops edit`
+# and `sops encrypt -i` do) instead of replacing it with a new file, then run
+# `docker compose kill -s HUP secrets` for the sidecar to reload it.
 #
-# On host reboot Docker restarts containers but ignores depends_on, so both
+# On host reboot Docker restarts containers and ignores depends_on, so both
 # services use restart: unless-stopped and the app keeps retrying until its
 # secret file exists.
 
@@ -59,7 +59,7 @@ services:
     restart: unless-stopped
     environment:
       API_TOKEN_FILE: /run/secrets/api_token
-    # Proves the file is readable without printing its contents.
+    # Checks that the file is readable without printing its contents.
     command:
       - sh
       - -c

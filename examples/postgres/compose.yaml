@@ -4,23 +4,23 @@
 # Setup: see secrets.sops.yaml.example, then `docker compose up -d`.
 #
 # With every capability but CHOWN and FOWNER dropped, even this root sidecar
-# cannot bypass file permissions, so age.key must be owned by uid 0 and
+# cannot override file permissions, so age.key must be owned by uid 0 and
 # readable only by it: `sudo chown 0:0 age.key && sudo chmod 0400 age.key`.
 #
-# SOPS_SIDECAR_IMAGE overrides the sidecar image (used by the integration
-# tests to run a locally built image); it defaults to the released major tag.
+# SOPS_SIDECAR_IMAGE overrides the sidecar image (the integration tests use it
+# to run a locally built image) and defaults to the released major tag.
 #
 # Inputs are mounted as single files, and a single-file bind mount follows the
-# inode. After changing secrets.sops.yaml, rewrite it in place (as
-# `sops edit` and `sops encrypt -i` do), never replace it with a new file, then
-# run `docker compose kill -s HUP secrets` for the sidecar to reload it.
+# inode. After changing secrets.sops.yaml, rewrite it in place (as `sops edit`
+# and `sops encrypt -i` do) instead of replacing it with a new file, then run
+# `docker compose kill -s HUP secrets` for the sidecar to reload it.
 #
-# Why the sidecar runs as root here: the map file chowns postgres_password to
+# The sidecar runs as root here because the map file chowns postgres_password to
 # the postgres user (uid 70 in the alpine image), and Docker gives added
 # capabilities (CHOWN, FOWNER) only to root processes. Every other capability
-# is dropped. See ../generic-app for a setup that needs no root and no caps.
+# is dropped. ../generic-app is a setup with no root and no added capabilities.
 #
-# On host reboot Docker restarts containers but ignores depends_on, so both
+# On host reboot Docker restarts containers and ignores depends_on, so both
 # services use restart: unless-stopped and db keeps retrying until its
 # secret file exists.
 

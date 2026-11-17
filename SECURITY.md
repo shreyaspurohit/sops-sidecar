@@ -20,7 +20,7 @@ This is a volunteer project. I aim to acknowledge reports within a few days and 
 
 ## Scope and verification
 
-What the sidecar does and does not protect is described in [docs/security-model.md](docs/security-model.md).
+[docs/security-model.md](docs/security-model.md) describes what the sidecar does and does not protect.
 
 Released images are signed with cosign keyless signing. Verify before use:
 

@@ -2,13 +2,13 @@
 
 ## The limitation
 
-After a host reboot, the Docker daemon restarts containers that have a restart policy but **ignores `depends_on`**. An app container can therefore start before the sidecar is healthy and fail to find its secret. `depends_on: condition: service_healthy` only applies to `docker compose up`.
+After a host reboot, the Docker daemon restarts containers that have a restart policy but **ignores `depends_on`**. An app container can therefore start before the sidecar is healthy and fail to find its secret. `depends_on: condition: service_healthy` applies only to `docker compose up`.
 
-The tmpfs volume is empty after a reboot, so the sidecar must write the secrets again before the app can read them. Pick one or combine these mitigations.
+The tmpfs volume is empty after a reboot, so the sidecar must write the secrets again before the app can read them. Use one of these mitigations, or combine them.
 
 ## 1. `restart: unless-stopped` on the app
 
-The simplest option. The app exits when its secret file is missing, Docker restarts it, and it succeeds once the sidecar has written the file.
+This is the simplest option. The app exits when its secret file is missing, Docker restarts it, and it succeeds once the sidecar has written the file.
 
 ```yaml
 services:
@@ -54,4 +54,4 @@ WantedBy=multi-user.target
 
 Save it as `/etc/systemd/system/compose-stack.service`, set `WorkingDirectory=` to your project, and run `systemctl enable --now compose-stack.service`.
 
-On a NAS without systemd access, use its scheduler instead; see the [Synology recipe](recipes/synology.md) for the Task Scheduler equivalent.
+On a NAS without systemd access, use its scheduler. The [Synology recipe](recipes/synology.md) describes the Task Scheduler equivalent.

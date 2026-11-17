@@ -20,8 +20,8 @@ One term per concept, used identically in code, logs, docs, and env vars.
 | **output dir** | The tmpfs directory secrets are written to (`OUTPUT_DIR`). |
 | **file name** | A secret's file name inside the output dir. Always a single path element. |
 | **plan** | The validated list of files to write, computed purely from secrets plus the map file. |
-| **ready marker** | The file `.sops-sidecar-ready` in the output dir; it exists only while the last load succeeded. |
-| **load** | One pass of read inputs → decrypt → plan → write → mark ready. |
+| **ready marker** | The file `.sops-sidecar-ready` in the output dir. It exists only while the last load succeeded. |
+| **load** | One pass of reading inputs, decrypting, planning, writing, and marking ready. |
 | **reload** | A load triggered by `SIGHUP` while `run` is running. |
 
 ## Data flow
@@ -40,7 +40,7 @@ files ─(cmd reads)─► decrypt.ParseIdentities ─┐
              └───────────────────────────────────┘
 ```
 
-`run` = load, then block; on `SIGHUP` load again; on `SIGTERM`/`SIGINT` exit.
+`run` loads, then blocks. `SIGHUP` triggers another load, and `SIGTERM` or `SIGINT` exits.
 
 ## Dependency graph
 
@@ -52,7 +52,7 @@ decrypt, writer ──► (no internal packages)
 internal/sopstest ──► (test support only; imported only by _test.go files)
 ```
 
-No cycles. No package imports `cmd`. Packages use each other's exported API only.
+The graph has no cycles. No package imports `cmd`, and packages use each other's exported API only.
 
 ## Domain ownership map
 
@@ -69,7 +69,7 @@ Each concept, its rules, and its constants are defined in exactly one package.
 
 ## Pure core vs I/O shell
 
-**Pure core** (no file system, env, clock, or process state; inputs → outputs):
+**Pure core** (reads no file system, env, clock, or process state, so outputs depend only on inputs):
 `config.FromEnv` (env is passed in as a lookup function), `config.ParseMap`,
 `config.Map.Plan`, `decrypt.FormatForPath`, `decrypt.ParseIdentities`,
 `decrypt.Decrypt`, `writer.ParseName`, `writer.ParseReservedName`,
@@ -103,7 +103,7 @@ func ParseName(s string) (Name, error)          // rejects "", ".", "..", any '/
 func ParseReservedName(s string) (Name, error)  // same rules, but s must start with ReservedPrefix
 func (n Name) String() string
 
-type Mode uint32                                // permission bits only (≤ 0o777)
+type Mode uint32                                // permission bits only (up to 0o777)
 func ParseMode(s string) (Mode, error)          // octal text: "0400" or "400" (3 digits, optional leading 0); rejects others and bits above 0o777
 func (m Mode) String() string                   // "0400"
 
@@ -125,10 +125,10 @@ func (d *Dir) Close() error
 func (d *Dir) CheckTmpfs() error                // fstatfs (golang.org/x/sys/unix) on the open dir; errors unless TMPFS_MAGIC; always errors off Linux
 func (d *Dir) Write(f File) error
     // atomic, all via os.Root: create ReservedPrefix+"-tmp-<random hex>" with
-    // O_CREATE|O_EXCL|O_WRONLY 0600 → write Data → Sync → Chown(Owner) → Chmod(Mode)
-    // → Close → refuse if the target exists and is not a regular file (symlink,
-    // dir, …) → Rename over target. On any error the temp file is removed and the
-    // previous target (if any) is untouched. Rejects a zero Name.
+    // O_CREATE|O_EXCL|O_WRONLY 0600, write Data, Sync, Chown(Owner), Chmod(Mode),
+    // Close, refuse if the target exists and is not a regular file (symlink,
+    // dir, ...), then Rename over target. On any error the temp file is removed
+    // and the previous target (if any) is untouched. Rejects a zero Name.
 func (d *Dir) Remove(n Name) error              // nil if already absent; refuses to remove a non-regular file
 func (d *Dir) RemoveTempFiles() error           // deletes ReservedPrefix+"-tmp-*" files a killed run left behind
 func (d *Dir) Names() ([]Name, error)           // regular files with valid secret names (adopted at startup)
@@ -146,7 +146,7 @@ const (
     FormatYAML Format = iota
     FormatJSON
 )
-func FormatForPath(path string) Format          // ".json" (case-insensitive) → FormatJSON, otherwise FormatYAML
+func FormatForPath(path string) Format          // ".json" (case-insensitive) gives FormatJSON, anything else FormatYAML
 
 type Identities struct{ /* []age.Identity */ }
 func ParseIdentities(keyFile []byte) (Identities, error)
@@ -219,9 +219,9 @@ type Config struct {
 
 type LookupFunc func(name string) (string, bool) // os.LookupEnv in production; a map in tests
 func FromEnv(lookup LookupFunc) (Config, error)
-    // unset or empty → default. Booleans via strconv.ParseBool; LOG_LEVEL via
+    // unset or empty uses the default. Booleans via strconv.ParseBool; LOG_LEVEL via
     // a case-insensitive match of debug|info|warn|error (level offsets such as `info+1` are refused). Path env vars must be
-    // absolute. SOPS_AGE_KEY present → error explaining that env vars are visible
+    // absolute. SOPS_AGE_KEY present is an error explaining that env vars are visible
     // in `docker inspect` and to mount the key as a file instead.
 
 // Map is a parsed map file. The zero Map means "no map file": every key is
@@ -265,7 +265,7 @@ type Marker struct{ /* *writer.Dir, writer.Name */ }
 func NewMarker(d *writer.Dir) (Marker, error)
 func (m Marker) Set() error    // writes an empty MarkerMode file atomically, owner unchanged
 func (m Marker) Clear() error  // removes it; nil if absent
-func Check(outputDir string) error // nil only if outputDir/MarkerName is a regular file (Lstat; symlink → error)
+func Check(outputDir string) error // nil only if outputDir/MarkerName is a regular file (Lstat; a symlink is an error)
 ```
 
 The ready marker is the only readiness state. It is cleared before every load
@@ -305,28 +305,28 @@ Subcommands (`flag` + `switch`, no framework):
 
 | Command | Behavior |
 |---|---|
-| `run` (default when no args) | Config → open output dir → clear an inherited ready marker → tmpfs check (skipped with a `WARN` when `ALLOW_NON_TMPFS=true`) → remove leftover temp files → adopt the regular secret files already there (the output dir belongs to the sidecar) → load, which removes adopted files whose keys are gone. Initial load failure → exit 1. Then block. `SIGHUP` → reload (failure: logged, marker stays cleared, previous files stay, keep running). `SIGTERM`/`SIGINT` → exit 0; files kept unless `WIPE_ON_EXIT=true` (then clear the marker and remove every managed file). |
-| `health` | `config.FromEnv` → `health.Check(OutputDir)` → exit 0 or 1. Prints nothing on success. |
-| `check` | Read inputs → decrypt → plan; print each planned entry's **key** on its own line to stdout (sorted); write nothing; exit 1 on any problem. |
-| `version` | Print `sops-sidecar <version>` where version comes from `runtime/debug.ReadBuildInfo().Main.Version`. |
+| `run` (default when no args) | Reads the config, opens the output dir, clears an inherited ready marker, runs the tmpfs check (skipped with a `WARN` when `ALLOW_NON_TMPFS=true`), removes leftover temp files, adopts the regular secret files already there (the output dir belongs to the sidecar), and loads, which removes adopted files whose keys are gone. An initial load failure exits 1. Then it blocks. `SIGHUP` triggers a reload. A failed reload is logged, leaves the marker cleared and the previous files in place, and the sidecar keeps running. `SIGTERM` or `SIGINT` exits 0 and keeps the files unless `WIPE_ON_EXIT=true`, which clears the marker and removes every managed file. |
+| `health` | Reads the config with `config.FromEnv`, runs `health.Check(OutputDir)`, and exits 0 or 1. Prints nothing on success. |
+| `check` | Reads inputs, decrypts, and plans. Prints each planned entry's **key** on its own line to stdout (sorted), writes nothing, and exits 1 on any problem. |
+| `version` | Prints `sops-sidecar <version>`, taking the version from `runtime/debug.ReadBuildInfo().Main.Version`. |
 
 Signals: `signal.NotifyContext(ctx, SIGTERM, SIGINT)` for shutdown and a
 separate `signal.Notify(ch, SIGHUP)` channel, both registered explicitly (the
 binary is PID 1 in the container). The lifecycle loop takes the reload channel
 as a parameter so tests can drive it without real signals.
 
-Reading inputs: each file read with a `maxInputBytes` limit. Map file: absent
-at the default path → zero `Map`; absent when `MapRequired` → error.
+Each input file is read with a `maxInputBytes` limit. A map file absent at the
+default path gives the zero `Map`, and one absent when `MapRequired` is set is an error.
 
 ## Errors
 
-- No sentinel or typed errors are exported: no caller branches on them.
+- No sentinel or typed errors are exported because no caller branches on them.
   Standard-library sentinels (`fs.ErrNotExist`) are checked with `errors.Is`.
 - Error text names keys, file names, and paths. It never contains a value, the
   age key file's contents, or text from parsers that may echo input
   (age identity parsing, sops store, and sops tree-decrypt errors are replaced
-  with fixed messages, not wrapped). Map file YAML errors are wrapped: the map
-  file holds no secrets, and its field/line messages are needed to fix it.
+  with fixed messages, not wrapped). Map file YAML errors are wrapped, because the map
+  file holds no secrets and its field and line messages are needed to fix it.
 - `cmd` prints a failing command's error once to stderr as a log line.
 
 ## Logging
@@ -344,7 +344,7 @@ Never logs a value. Key names and file names appear only at `debug`.
 | DEBUG | `secret written` | `key`, `file`, `mode`, `uid`, `gid` |
 | DEBUG | `secret removed` | `file` |
 
-sops' own logrus loggers are discarded at startup (`decrypt.DisableSOPSLogs`): they write outside `LOG_LEVEL` and can echo file content, such as an unencrypted comment.
+sops' own logrus loggers are discarded at startup (`decrypt.DisableSOPSLogs`) because they write outside `LOG_LEVEL` and can echo file content, such as an unencrypted comment.
 
 ## Exit codes
 
@@ -374,12 +374,12 @@ Built-in file defaults (when the map file sets neither entry values nor
 
 - Table-driven tests through each package's exported API; `t.TempDir`,
   `t.Setenv`, `t.Helper`; hand-written fakes only; `go-cmp` allowed.
-- Fuzz: `config.ParseMap` and `writer.ParseName` with committed seed corpora
-  under `testdata/fuzz/`.
-- No-secret-in-logs: each package asserts a canary value never appears in its
-  errors; `cmd` runs every subcommand and failure path with a canary value,
+- `config.ParseMap` and `writer.ParseName` have fuzz targets with committed seed
+  corpora under `testdata/fuzz/`.
+- Each package asserts a canary value never appears in its
+  errors. `cmd` runs every subcommand and failure path with a canary value,
   both in-process and as a re-executed subprocess (so sops' own stderr output
   is captured too), and asserts the canary never appears in stdout, stderr, or
   errors.
-- Coverage: `scripts/coverage.sh` — ≥ 90 % per `internal/` package and ≥ 80 %
-  overall, from `go test -race -covermode=atomic -coverprofile`.
+- Coverage gates in `scripts/coverage.sh` are at least 90 % per `internal/` package and at least 80 %
+  overall, measured with `go test -race -covermode=atomic -coverprofile`.

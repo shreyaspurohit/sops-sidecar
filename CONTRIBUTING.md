@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. Please read [ARCHITECTURE.md](ARCHITECTURE.md) first: it defines the package boundaries and the vocabulary (secret, key, value, map file, output dir, ready marker). Scope is deliberately small; see "Explicitly not doing" in [DECISIONS.md](DECISIONS.md) before proposing a feature.
+Read [ARCHITECTURE.md](ARCHITECTURE.md) first. It defines the package boundaries and the vocabulary (secret, key, value, map file, output dir, ready marker). The scope is deliberately small, so see "Explicitly not doing" in [DECISIONS.md](DECISIONS.md) before proposing a feature.
 
 ## Tool setup
 
@@ -23,9 +23,9 @@ asdf plugin add syft
 asdf install
 ```
 
-- `zizmor` has no asdf plugin; `scripts/zizmor.sh` runs it through `uvx` (uv comes from asdf).
+- `zizmor` has no asdf plugin, so `scripts/zizmor.sh` runs it through `uvx` (uv comes from asdf).
 - Go dev tools (`staticcheck`, `govulncheck`, `deadcode`) are `tool` directives in `go.mod` and run with `go tool`.
-- Docker and Docker Compose are not managed by asdf; install them yourself.
+- Install Docker and Docker Compose yourself. asdf does not manage them.
 
 ## Checks to run before a pull request
 
@@ -53,10 +53,10 @@ SIDECAR_IMAGE=sops-sidecar:test COMPOSE_BIN="$(scripts/fetch-compose.sh v2.20.0)
 
 ## Standards
 
-- Idiomatic Go: Effective Go, Go Code Review Comments, Google Go Style Guide. Standard library first; every new dependency needs a one-line justification in `DECISIONS.md`.
-- Functional core, imperative shell: parsing, validation and planning are pure; I/O sits at the edges.
-- Never log or return secret values, in any level or error. Tests assert this with a canary value.
-- No dead code, no commented-out code, doc comments on every exported identifier. Comments say what is guaranteed and why, not who calls the code.
+- Idiomatic Go: Effective Go, Go Code Review Comments, Google Go Style Guide. Standard library first. Every new dependency needs a one-line justification in `DECISIONS.md`.
+- Functional core, imperative shell: parsing, validation and planning are pure, and I/O sits at the edges.
+- Never log or return secret values, at any level or in any error. Tests assert this with a canary value.
+- No dead code, no commented-out code, doc comments on every exported identifier. Comments say what is guaranteed and why, and leave out who calls the code.
 - Table-driven tests through the public API. Coverage gates: at least 90% per `internal/` package and 80% overall, enforced on Linux (CI). On other platforms `scripts/coverage.sh` prints the numbers without failing, because Linux-only code such as the tmpfs check cannot run there.
 - Every default is documented in the README configuration table.
 
