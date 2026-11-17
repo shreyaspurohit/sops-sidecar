@@ -1,6 +1,6 @@
 # Recipe: Synology Container Manager
 
-This recipe runs a sops-sidecar stack on a Synology NAS with Container Manager. Compose there may be v2.20.x, the minimum version this project is tested against. Open an issue if a step does not match what you see.
+This recipe runs a sops-sidecar stack on a Synology NAS with Container Manager. Compose there may be v2.20.x, the minimum version this project is tested against. Open an issue if a step differs on another DSM version.
 
 ## What has been tested
 
@@ -16,11 +16,6 @@ The postgres example was run once on a real NAS: DSM 7.4.1-90080 Update 1, x86_6
 | Postgres started before the sidecar (what a reboot does) | Restarts until the secret file exists, then comes up |
 | Secret values in either container's logs | None appear |
 | Who else can read the root-owned `0400` `age.key` | An SSH login to an administrator account cannot read it without `sudo`. The same kind of account **downloaded it through File Station**, which follows the shared folder's permissions, not the file's owner and mode. |
-
-**Not tested yet:**
-- creating the project in the Container Manager UI;
-- a real reboot;
-- the boot task below.
 
 **One difference from other Docker hosts.** On this kernel, the app's read-only mount of the secrets volume loses `nosuid,nodev,noexec`, and `cat /proc/mounts` in the app container shows only `ro,relatime,…`. The sidecar's writable mount keeps the flags, and secret file modes are capped at `0777`, so no setuid file can be written.
 
@@ -39,7 +34,7 @@ The age key decrypts everything. Do not keep it in the project folder, which may
 
 Create a separate shared folder for the key:
 - Set **No access** for every user and group that doesn't need it.
-- Keep it out of any file services, sharing links and backups you don't need for it.
+- Keep it out of any file services, sharing links and backups that do not need it.
 - Put `age.key` there and mount it by absolute path in the compose file:
 
 ```yaml
@@ -55,9 +50,9 @@ Anyone with DSM administrator rights can still reach the key, because they can c
 
 **Ownership.** The examples run the sidecar with `cap_drop: [ALL]`. That removes the capabilities that normally let root read any file regardless of permissions (`CAP_DAC_OVERRIDE` and `CAP_DAC_READ_SEARCH`). So inside the container even root reads a file only through its normal owner, group and mode bits. A `0400` file is readable only by its owner, so the owner has to be the sidecar's own uid. The key is bind-mounted, so the container sees the uid that the file has on the NAS.
 
-**The sidecar's uid.** Look at the `user:` line of the `secrets` service in your `compose.yaml`:
+**The sidecar's uid.** Look at the `user:` line of the `secrets` service in the project's `compose.yaml`:
 
-| Your compose file | Sidecar runs as | Command |
+| Compose file | Sidecar runs as | Command |
 |---|---|---|
 | `user: "0:0"` (examples/postgres) | root, uid 0 | `sudo chown 0:0 age.key` |
 | `user: "65532:65532"` (examples/generic-app) | uid 65532 | `sudo chown 65532:65532 age.key` |
@@ -68,7 +63,7 @@ In every case, finish with `sudo chmod 0400 age.key`. Check with `ls -ln age.key
 
 **The postgres example runs as root.** The postgres image reads its password as its own user, uid 70, so the map file asks the sidecar to `chown` the secret file to `70:70`. Changing a file's owner needs `CAP_CHOWN`, and Docker gives added capabilities (`cap_add`) only to processes running as root. So that example runs the sidecar as `user: "0:0"` with `CHOWN` and `FOWNER` added back, and `age.key` must be owned by uid 0. The generic-app example needs no `chown`, so it keeps the image's non-root uid 65532 with no capabilities at all, and its key belongs to 65532.
 
-**On the NAS.** Your DSM administrator account is not uid 0, so the commands use `sudo`. Once the key belongs to root or 65532, your account cannot read it from an SSH shell without `sudo`. File Station can still serve it to anyone the shared folder's permissions allow (see above). Keep your personal copy of the key, which `sops edit` uses, somewhere else, for example `~/.config/sops/age/keys.txt` on your workstation.
+**On the NAS.** A DSM administrator account is not uid 0, so the commands use `sudo`. Once the key belongs to root or 65532, that account cannot read it from an SSH shell without `sudo`. File Station can still serve it to anyone the shared folder's permissions allow (see above). Keep the personal copy of the key, which `sops edit` uses, somewhere else, for example `~/.config/sops/age/keys.txt` on the workstation.
 
 ## Start the stack at boot
 

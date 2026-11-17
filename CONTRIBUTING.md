@@ -25,7 +25,7 @@ asdf install
 
 - `zizmor` has no asdf plugin, so `scripts/zizmor.sh` runs it through `uvx` (uv comes from asdf).
 - Go dev tools (`staticcheck`, `govulncheck`, `deadcode`) are `tool` directives in `go.mod` and run with `go tool`.
-- Install Docker and Docker Compose yourself. asdf does not manage them.
+- Install Docker and Docker Compose separately. asdf does not manage them.
 
 ## Checks to run before a pull request
 
@@ -76,4 +76,4 @@ Branch protection on `main` and Renovate automerge require these CI job names:
 
 ## License
 
-By contributing you agree that your contributions are licensed under the [MIT License](LICENSE).
+By contributing contributors agree that their contributions are licensed under the [MIT License](LICENSE).

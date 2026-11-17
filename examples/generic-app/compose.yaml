@@ -6,7 +6,7 @@
 # below), so the sidecar can write to it without root or chown, and it leaves
 # each file owned by itself (mode 0400). The app runs as the same uid, so it
 # can read the files. Without a secrets.map.yaml, every top-level key of
-# secrets.sops.yaml becomes /run/secrets/<key>. If your app runs as a different
+# secrets.sops.yaml becomes /run/secrets/<key>. If the app runs as a different
 # uid, use ../postgres instead (root sidecar with CHOWN and FOWNER).
 #
 # With every capability dropped, the sidecar cannot override file permissions,

@@ -11,7 +11,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Ready marker `.sops-sidecar-ready` and `sops-sidecar health` for the Compose healthcheck.
 - `SIGHUP` reload that replaces each file atomically and removes files for keys that disappeared. `SIGTERM` and `SIGINT` shut the sidecar down cleanly, and `WIPE_ON_EXIT` is optional.
 - `sops-sidecar check` validates inputs and prints key names only. `sops-sidecar version` prints the version.
-- Fail-closed startup refuses a non-tmpfs output dir, `SOPS_AGE_KEY` in the environment, nested values, unsafe paths, a wrong key, and a SOPS file with no keys (a reload of one keeps the previous files and reports not ready).
+- Startup refuses a non-tmpfs output dir, `SOPS_AGE_KEY` in the environment, nested values, unsafe paths, a wrong key, and a SOPS file with no keys (a reload of one keeps the previous files and reports not ready).
 - Secret values are never logged or included in errors, verified by canary tests.
 - Post-quantum hybrid age keys (`age-keygen -pq`, `age1pq1...` recipients) work and are what the docs now use. Key files may mix them with classic keys. Covered by tests.
 - README sections on adding, changing and removing a secret, and on adding or replacing an age key with `sops rotate`.

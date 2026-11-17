@@ -11,28 +11,29 @@ Why it is different:
 1. **Zero host install.** Only Docker and Compose are installed on the host, with no sops binary, plugin or systemd unit.
 2. **Works on old Compose.** Uses only plain Compose features, down to Compose v2.20.0.
 3. **Recreate-safe.** A long-running sidecar rather than a run-once init container, so the tmpfs volume stays populated when another container is recreated (for example by Watchtower or `docker compose up -d`).
-4. **Files, not env vars.** Pairs with the `*_FILE` convention (`POSTGRES_PASSWORD_FILE`, ...). No secret appears in `docker inspect`.
-5. **Per-file owner and mode.** Each secret file can be chowned and chmodded for the consuming container's user.
-6. **Fails closed.** On a wrong key, a bad file, a SOPS file with no keys or a non-tmpfs output dir, it refuses, stays unhealthy and dependent services do not start.
+4. **Secrets as files.** Pairs with the `*_FILE` convention (`POSTGRES_PASSWORD_FILE`, ...).
+5. **Nothing secret in `docker inspect`.** Decrypted values exist only as files in the tmpfs volume.
+6. **Per-file owner and mode.** Each secret file can be chowned and chmodded for the consuming container's user.
+7. **Refuses bad input.** On a wrong key, a bad file, a SOPS file with no keys or a non-tmpfs output dir, it refuses, stays unhealthy and dependent services do not start.
 
-Tested on Compose v2.20.0 and the latest release. It is meant for appliance builds that often ship older Compose. The postgres example has been run on one Synology NAS (DSM 7.4.1, x86_64, Container Manager's Docker 24.0.2 and Compose v2.20.1). The [recipe](docs/recipes/synology.md) lists what was and wasn't covered. Portainer is untested.
+Tested on Compose v2.20.0 and the latest release. It is meant for appliance builds that often ship older Compose. The postgres example has been run on one Synology NAS (DSM 7.4.1, x86_64, Container Manager's Docker 24.0.2 and Compose v2.20.1). The [recipe](docs/recipes/synology.md) lists what was covered.
 
 See [docs/comparison.md](docs/comparison.md) for how this relates to other tools.
 
 ## Quick start: Postgres in five minutes
 
-You need Docker with Compose, plus `age` 1.3 or newer and `sops`. Both are used only to create the encrypted file, and the sidecar needs neither on the host. The steps below were run with age 1.3.2 and sops 3.13.3.
+The quick start needs Docker with Compose, plus `age` 1.3 or newer and `sops`. Both are used only to create the encrypted file, and the sidecar needs neither on the host. The steps below were run with age 1.3.2 and sops 3.13.3.
 
 ```sh
 cp -r examples/postgres my-stack && cd my-stack
 
 # 1. Generate one age key and keep two copies of it. Keep both out of git.
-#    - ~/.config/sops/age/keys.txt is yours: sops reads it by default to
+#    - ~/.config/sops/age/keys.txt is the workstation copy: sops reads it by default to
 #      encrypt and edit.
 #    - age.key is the sidecar's: it must belong to the sidecar's uid (0 here;
 #      65532 for examples/generic-app), because the sidecar drops every
 #      capability and even root then cannot read a key file it does not own.
-#      After the chown you can't read age.key yourself, which is why every
+#      After the chown the workstation user cannot read age.key, which is why every
 #      later command uses keys.txt. Both files hold the same key.
 #    -pq makes a post-quantum hybrid key (ML-KEM-768 with X25519). SOPS files
 #    tend to live in git for years, so protect them against "store now,
@@ -62,15 +63,15 @@ docker compose up -d
 docker compose exec db sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)" psql -h "$(hostname -i)" -U postgres -c "select 1"'
 ```
 
-`compose.yaml` and `secrets.map.yaml` are the files you copied from [examples/postgres](examples/postgres). A second example, [examples/generic-app](examples/generic-app), runs the sidecar as non-root with no capabilities for any image that reads a `*_FILE` variable.
+`compose.yaml` and `secrets.map.yaml` come from [examples/postgres](examples/postgres). A second example, [examples/generic-app](examples/generic-app), runs the sidecar as non-root with no capabilities for any image that reads a `*_FILE` variable.
 
 ### Change, add or remove a secret
 
-The `sops` commands below read your copy of the key, `$SOPS_AGE_KEY_FILE` (see step 1). Your user can't read the root-owned `age.key`. They all rewrite the SOPS file in place, which keeps the single-file bind mount working (see "Single-file bind mounts follow the inode" in [Notes](#notes-1)). Signal the sidecar after each change.
+The `sops` commands below read the workstation copy of the key, `$SOPS_AGE_KEY_FILE` (see step 1). The workstation user cannot read the root-owned `age.key`. They all rewrite the SOPS file in place, which keeps the single-file bind mount working (see "Single-file bind mounts follow the inode" in [Notes](#notes-1)). Signal the sidecar after each change.
 
 ```sh
 # Open the decrypted file in $EDITOR. Change a value, add a line such as
-# `api_token: ...`, or delete a line. sops re-encrypts when you save.
+# `api_token: ...`, or delete a line. sops re-encrypts on save.
 sops edit secrets.sops.yaml
 
 # Or, from a script, use --value-stdin. It reads a JSON string that jq builds
@@ -87,7 +88,7 @@ postgres_password: ENC[AES256_GCM,data:...,iv:...,tag:...,type:str]
 api_token: ENC[AES256_GCM,data:...,iv:...,tag:...,type:str]
 sops:
     age:
-        - recipient: age1pq1...   # your key's public half
+        - recipient: age1pq1...   # the key's public half
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
             ...
@@ -105,7 +106,7 @@ A removed key's file is deleted on the next reload.
 
 ### Add or replace an age key
 
-Use this to give a second machine its own key, move from a classic key to a post-quantum one, or replace a key you no longer trust. A SOPS file can list several recipients, and any one of their keys decrypts it.
+Use this to give a second machine its own key, move from a classic key to a post-quantum one, or replace a key that is no longer trusted. A SOPS file can list several recipients, and any one of their keys decrypts it.
 
 ```sh
 # 1. Create the new key next to the old one.
@@ -119,7 +120,7 @@ sops rotate -i --add-age "$(age-keygen -y ~/.config/sops/age/new.txt)" secrets.s
 sudo cp ~/.config/sops/age/new.txt age.key
 docker compose kill -s HUP secrets
 
-# 4. Once the sidecar is healthy, remove the old recipient and make the new key yours.
+# 4. Once the sidecar is healthy, remove the old recipient and make the new key the workstation copy.
 sops rotate -i --rm-age "$(age-keygen -y "$SOPS_AGE_KEY_FILE")" secrets.sops.yaml
 mv ~/.config/sops/age/new.txt "$SOPS_AGE_KEY_FILE"
 docker compose kill -s HUP secrets
@@ -138,13 +139,13 @@ Each file is replaced atomically, so a reader never sees a partial file. The set
 
 ## Which example do I start from?
 
-It depends on which user your app reads the secret file as. With the default mode `0400`, only the file's owner can read it.
+It depends on which user the app reads the secret file as. With the default mode `0400`, only the file's owner can read it.
 
 1. **Find the app's uid.**
    - Check the image docs for "runs as user ...", `PUID`/`PGID`, or a note about `*_FILE` variables.
    - Run `docker image inspect -f '{{.Config.User}}' <image>`. An empty result means the image starts as root.
-   - Some entrypoints start as root and switch to a service user before reading `*_FILE`. Postgres starts as root, then reads the password as uid 70. The docs or the entrypoint script tell you which applies.
-   - When unsure, start with generic-app. A "Permission denied" error on the secret file in the app's logs means you need one of the other setups.
+   - Some entrypoints start as root and switch to a service user before reading `*_FILE`. Postgres starts as root, then reads the password as uid 70. The image docs or the entrypoint script say which applies.
+   - When unsure, start with generic-app. A "Permission denied" error on the secret file in the app's logs means one of the other setups is needed.
 2. **Pick the setup.**
 
 | The app reads secrets as | Start from | Sidecar runs as |
@@ -174,7 +175,7 @@ Every default lives in this table. Paths must be absolute. An empty value is the
 |---|---|---|
 | `SOPS_FILE` | `/config/secrets.sops.yaml` | The SOPS file (YAML, or JSON if the name ends in `.json`). Top-level scalar keys only. |
 | `SOPS_AGE_KEY_FILE` | `/config/age.key` | The age key file. |
-| `SECRETS_MAP` | `/config/secrets.map.yaml` (optional) | The map file. If you set this variable explicitly, the file must exist. |
+| `SECRETS_MAP` | `/config/secrets.map.yaml` (optional) | The map file. If this variable is set explicitly, the file must exist. |
 | `OUTPUT_DIR` | `/secrets` | Where secret files are written. Must be tmpfs. |
 | `ALLOW_NON_TMPFS` | `false` | Skip the tmpfs check. For tests only. Logs a warning. |
 | `WIPE_ON_EXIT` | `false` | Remove written files and the ready marker on `SIGTERM`/`SIGINT`. |
@@ -213,7 +214,7 @@ Exit codes: `0` success (`health`: ready), `1` failure (config, inputs, decrypt,
 
 ## Notes
 
-- **Files, not env vars.** Point the app at the file (`POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password`) and mount the secrets volume read-only.
+- **Secrets as files.** Point the app at the file (`POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password`) and mount the secrets volume read-only.
 - **Privileges.** The image runs as a non-root user (uid 65532) by default. It needs no capabilities while files stay owned by the sidecar's uid. Give the tmpfs volume `uid=65532,gid=65532` in its `o:` options so that user can write to it (see [examples/generic-app](examples/generic-app/compose.yaml)). When the map sets owners other than the sidecar's uid, run it as `user: "0:0"` with `cap_drop: [ALL]` and `cap_add: [CHOWN, FOWNER]` only. Docker gives added capabilities to root processes only, which is why root is needed there. See [examples/postgres/compose.yaml](examples/postgres/compose.yaml).
 - **Numbers and booleans** are written in SOPS's string form (`True`/`False`). To get other text, quote the value in the YAML.
 - **Single-file bind mounts follow the inode.** Rewrite the SOPS file in place (`sops edit`, `sops encrypt -i`) instead of replacing it with a new file. If the host path of a single-file bind mount does not exist, Docker creates a directory there.

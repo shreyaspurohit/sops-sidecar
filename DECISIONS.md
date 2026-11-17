@@ -117,9 +117,9 @@ Every non-test Go file was reviewed for code that a maintained, open-source libr
 
 A load that yields no files (a SOPS file with no top-level keys) is an error, `config.ErrNoSecrets`, not an empty plan. Applying an empty plan would remove every secret file as stale and then set the ready marker, so consumers would start healthy with no secrets. `Map.Plan` refuses it, and `apply` checks again just before writing, so that no future change to `load` can reintroduce that failure. Deliberately empty SOPS files are not a supported use case. The value-type `Plan` is kept (zero value plus error, Go convention). The guard sits where the damage would happen instead of in a `*Plan`/`nil` return.
 
-## Untested appliance claim corrected (November 2026)
+## Appliance testing claim corrected (November 2026)
 
-Round 1, Claude #12 flagged that the README named NAS and Portainer appliance builds as tested. The finding was first rejected because the wording came from the spec. It was later adopted, and the README now says the project is tested on Compose v2.20.0 and latest and has not yet been tested on those appliances. Docs never claim testing that did not happen.
+Round 1, Claude #12 flagged that the README named NAS and Portainer appliance builds as tested. The finding was first rejected because the wording came from the spec. It was later adopted. The README states only what was tested: Compose v2.20.0 and latest, plus the one NAS run recorded in the recipe.
 
 ## Post-quantum age keys recommended
 

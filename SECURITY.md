@@ -12,9 +12,9 @@ Please report privately through GitHub Security Advisories:
 Do not open a public issue for a vulnerability. Include:
 
 - the version or image tag (`sops-sidecar version`),
-- what you did, what you expected, and what happened,
+- the steps taken, the expected result, and the actual result,
 - a minimal reproduction (compose file, map file; never real secrets or keys),
-- the impact as you understand it.
+- the impact as understood by the reporter.
 
 This is a volunteer project. I aim to acknowledge reports within a few days and to fix confirmed issues as soon as I can, on a best-effort basis. Reporters are credited unless they prefer otherwise.
 

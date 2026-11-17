@@ -45,13 +45,13 @@ Requires=docker.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-WorkingDirectory=/path/to/your/project
+WorkingDirectory=/path/to/project
 ExecStart=/usr/bin/docker compose up -d
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Save it as `/etc/systemd/system/compose-stack.service`, set `WorkingDirectory=` to your project, and run `systemctl enable --now compose-stack.service`.
+Save it as `/etc/systemd/system/compose-stack.service`, set `WorkingDirectory=` to the project folder, and run `systemctl enable --now compose-stack.service`.
 
 On a NAS without systemd access, use its scheduler. The [Synology recipe](recipes/synology.md) describes the Task Scheduler equivalent.

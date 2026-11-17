@@ -16,18 +16,18 @@
 | Path tricks | Output goes through `os.Root`, file names are single path elements, and names under the reserved `.sops-sidecar` prefix are rejected. Absolute paths, `..` and symlinks are refused. |
 | Stale secrets after a restart | The output dir belongs to the sidecar. At startup it adopts the regular files already there, and the first load deletes those whose keys are gone. If that first load fails, the adopted files stay, the sidecar exits, and it is never reported ready. |
 | Torn or partial state | Each file is replaced atomically (temp file, fsync, chown/chmod, rename), so a reader never sees a partial file. The set is not transactional. The ready marker is removed before a reload and rewritten after, so it reports only that the last load completed at the moment it is checked. |
-| Silent failure | Any problem leaves the sidecar unhealthy (it fails closed), so dependents using `depends_on: condition: service_healthy` do not start. |
+| Silent failure | Any problem leaves the sidecar unhealthy, so dependents using `depends_on: condition: service_healthy` do not start. |
 
 ## What it does not protect
 
 - **Root on the host.** Root can read any container's memory, mounts and files.
 - **Anyone who can read the sidecar's `/proc` or memory, or `docker exec` into a container that mounts the volume.** Treat access to the Docker socket as access to the secrets.
 - **The age key file.** It decrypts everything. Protect it with host file permissions: make the sidecar's uid the owner (0 for the postgres example, 65532 for generic-app) with mode `0400`, since with all capabilities dropped not even root can read a bind-mounted key it does not own. Keep it out of git and out of backups, and out of any shared or backed-up project folder.
-- **Swap.** If the host swaps tmpfs pages to disk, plaintext can reach disk. Disable swap or use encrypted swap if that matters to you.
+- **Swap.** If the host swaps tmpfs pages to disk, plaintext can reach disk. Disable swap or use encrypted swap where that matters.
 - **The CI and release toolchain beyond exact versions.** CI installs its tools from `.tool-versions` through asdf plugins, which are not pinned to a commit. The asdf action itself is SHA-pinned and every tool version is exact.
-- **Whatever you mount into `/etc/sops`.** The sops library linked into the binary reads `/etc/sops/audit.yaml` at startup and, if that file configures an audit database, connects to it. The image ships no such file and the examples use `network_mode: none`. Do not mount one.
+- **Anything mounted into `/etc/sops`.** The sops library linked into the binary reads `/etc/sops/audit.yaml` at startup and, if that file configures an audit database, connects to it. The image ships no such file and the examples use `network_mode: none`. Do not mount one.
 - **The consuming application.** Once a container reads a secret, what it does with it is up to that application.
-- **Compromised images and the supply chain** beyond what signatures give you. Released images are signed with cosign keyless signing. Verify before use:
+- **Compromised images and the supply chain** beyond what signatures provide. Released images are signed with cosign keyless signing. Verify before use:
 
 ```sh
 cosign verify ghcr.io/shreyaspurohit/sops-sidecar:<tag> \
@@ -35,4 +35,4 @@ cosign verify ghcr.io/shreyaspurohit/sops-sidecar:<tag> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
-Pin images by digest where you can. To report a vulnerability, see [SECURITY.md](../SECURITY.md).
+Pin images by digest where possible. To report a vulnerability, see [SECURITY.md](../SECURITY.md).
