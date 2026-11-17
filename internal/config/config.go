@@ -65,13 +65,12 @@ type Config struct {
 }
 
 // LookupFunc reports the value of the environment variable name and whether
-// it is set. os.LookupEnv is one; tests pass a map-backed one.
+// it is set, with the signature of os.LookupEnv.
 type LookupFunc func(name string) (string, bool)
 
 // FromEnv builds a Config from environment variables read through lookup.
 // Unset or empty variables take their defaults. All problems are reported
-// together. SOPS_AGE_KEY is refused outright: environment variables are
-// visible through `docker inspect`, so the key must be mounted as a file.
+// together. EnvAgeKey is refused outright.
 func FromEnv(lookup LookupFunc) (Config, error) {
 	r := envReader{lookup: lookup}
 	if _, present := lookup(EnvAgeKey); present {

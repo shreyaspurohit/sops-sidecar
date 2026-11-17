@@ -137,9 +137,8 @@ func (s *sidecar) apply() error {
 	if err != nil {
 		return err
 	}
-	// load never returns an empty plan without an error; checking again here,
-	// where the damage would happen, keeps a future change from turning an
-	// empty plan into "remove every secret and report ready".
+	// Applying an empty plan would remove every secret file and then report
+	// ready, so it is refused here, right before anything changes.
 	if len(plan.Entries) == 0 {
 		return config.ErrNoSecrets
 	}

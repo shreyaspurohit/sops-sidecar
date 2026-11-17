@@ -33,6 +33,9 @@ const (
 	FormatJSON
 )
 
+// errTamperedText is the message for ciphertext that cannot be decrypted.
+const errTamperedText = "decrypt values: ciphertext is invalid or has been tampered with"
+
 // FormatForPath returns FormatJSON for a path ending in ".json" (any case)
 // and FormatYAML otherwise.
 func FormatForPath(path string) Format {
@@ -130,9 +133,6 @@ func unwrapDataKey(groups []sops.KeyGroup, ids Identities) ([]byte, error) {
 	}
 	return nil, errors.New("none of the age identities can decrypt the sops file's data key")
 }
-
-// errTamperedText is the message for ciphertext that cannot be decrypted.
-const errTamperedText = "decrypt values: ciphertext is invalid or has been tampered with"
 
 // decryptTree decrypts the tree's values in place and verifies that the MAC
 // stored in the file matches the decrypted content. Crafted ciphertext

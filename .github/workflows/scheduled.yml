@@ -35,7 +35,7 @@ jobs:
 
   image-scan:
     name: trivy (latest published image)
-    # No image is published and readable while the repo is private; see DECISIONS.md.
+    # A private repo has no publicly readable image to scan.
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 15

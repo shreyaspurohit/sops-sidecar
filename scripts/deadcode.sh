@@ -3,7 +3,7 @@
 # binary, except the redaction methods listed below. Those exist only so that
 # a secret value or age identity can never be printed, logged, or encoded by
 # mistake; the binary never formats them on purpose, so they are unreachable
-# by design (see DECISIONS.md).
+# by design.
 set -euo pipefail
 
 readonly ALLOWED='^internal/decrypt/(identities\.go:[0-9:]+: unreachable func: Identities\.Format|value\.go:[0-9:]+: unreachable func: Value\.(String|GoString|Format|MarshalText|LogValue))$'
