@@ -80,7 +80,6 @@ One line each: decision — reason. Newest sections at the bottom.
 
 - Round 1, Codex #7 (sops `audit` package `init` reads `/etc/sops/audit.yaml` and may connect to PostgreSQL) — the package is linked transitively by sops and cannot be excluded without forking; in the published image that file cannot exist unless an operator deliberately mounts it, and the examples run with `network_mode: none`. Documented in docs/security-model.md.
 - Round 1, Claude #10 (Lstat-then-Remove race in `writer.Dir.Remove`) — all operations are confined by `os.Root`; the worst case is removing an empty directory someone swapped in inside the output dir, which needs write access to the tmpfs that already implies full control of the secrets.
-- Round 1, Claude #11 (scheduled trivy job fails until the first image is published) — expected; it starts passing after `v0.1.0` is released and the GHCR package is public (listed in the maintainer steps).
 - Round 1, Claude #1 (`docker_signs.artifacts: ""` never signs) — adopted at first, then reverted: the GoReleaser docs (customization/docker_sign) state that `''` is the default and means "images built by dockers_v2", which is exactly what this config builds. A comment in `.goreleaser.yaml` records this.
 - Round 3, Claude #3 (no test pins chown-before-chmod) — the order is only observable as root with a foreign gid; adding a seam to the writer for it would cost more than it proves. The order is fixed in `writeAll` with a comment stating why.
 - Security S4 (release job runs asdf-installed tools from unpinned plugin repos with signing rights) — the spec mandates installing CI tools from `.tool-versions` via `asdf-vm/actions/install`; the action itself is SHA-pinned and tool versions are exact. Residual risk documented in docs/security-model.md.
@@ -93,6 +92,10 @@ One line each: decision — reason. Newest sections at the bottom.
 ## Release attestations skipped on private repos
 
 The two `actions/attest-build-provenance` steps in `release.yml` run only when the repository is public (`!github.event.repository.private`). GitHub offers artifact attestations for private repositories only on Enterprise Cloud, so a release from the private pre-launch repo would otherwise fail after the release and image were already published. cosign keyless signing still runs either way.
+
+## Scheduled image scan skipped on private repos
+
+The weekly `trivy (latest published image)` job in `scheduled.yml` runs only when the repository is public. Before launch there is no published image, and a private GHCR package can't be pulled with the workflow's token, so the job failed every week with an access error (Claude round 1 #11, previously accepted as expected). It starts running when the repo goes public, and `v0.1.0` is tagged right after that. Until then the `docker` job in CI still scans every freshly built image.
 
 ## Library review (November 2026)
 
