@@ -19,8 +19,42 @@ env:
   ASDF_VERSION: 0.20.2
 
 jobs:
+  # Docs-only changes skip the other jobs. A job skipped by its `if:` reports
+  # success, so the required checks still pass. The workflow itself always runs,
+  # because `paths-ignore` would leave the required checks waiting forever.
+  # If this job fails, every gated job runs.
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # paths-filter lists a pull request's files through the API
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # push events are compared with git, and fetching more needs no credentials
+      - id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          # "code" is true when any changed file matches every rule: anything
+          # outside Markdown, docs/, the *.example walkthroughs and LICENSE.
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!**/*.example'
+              - '!LICENSE'
+
   lint:
     name: lint
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -51,6 +85,8 @@ jobs:
 
   workflow-lint:
     name: workflow-lint
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -69,6 +105,8 @@ jobs:
 
   test:
     name: test
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -90,6 +128,8 @@ jobs:
 
   govulncheck:
     name: govulncheck
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -104,6 +144,8 @@ jobs:
 
   docker:
     name: docker
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -126,6 +168,11 @@ jobs:
     # The role, not the version, is in the job name so the required-check name
     # stays stable when Renovate bumps the latest version.
     name: integration (compose ${{ matrix.role }})
+    # Gated per step, not per job: a matrix job skipped by a job-level `if:`
+    # reports one check with the unexpanded name, so the required checks
+    # "integration (compose minimum)" and "(compose latest)" would never report.
+    needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -140,14 +187,18 @@ jobs:
             version: v5.7.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.code == 'true' }}
         with:
           persist-credentials: false
       - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.code == 'true' }}
         with:
           asdf_version: ${{ env.ASDF_VERSION }}
       - name: build image
+        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.code == 'true' }}
         run: docker build -t sops-sidecar:test .
       - name: integration tests
+        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.code == 'true' }}
         env:
           COMPOSE_VERSION: ${{ matrix.version }}
           SIDECAR_IMAGE: sops-sidecar:test

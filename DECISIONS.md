@@ -132,3 +132,12 @@ Classic keys keep working.
 ## Docs set `SOPS_AGE_KEY_FILE` explicitly
 
 On macOS, sops looks for `keys.txt` under `~/Library/Application Support/sops/age/` unless `XDG_CONFIG_HOME` is set (`getUserConfigDir` in sops v3.13.3), so the earlier "sops reads ~/.config/sops/age/keys.txt by default" failed there. The README and examples now export `SOPS_AGE_KEY_FILE` before using sops on the workstation. This is the host-side sops variable. The sidecar's own `SOPS_AGE_KEY_FILE` is set inside the container, and `SOPS_AGE_KEY` stays refused.
+
+## CI skips docs-only changes
+
+A `changes` job in `ci.yml` uses `dorny/paths-filter` (v4.0.3, MIT, pinned by SHA) to find out whether anything changed outside Markdown, `docs/`, the `*.example` walkthroughs and `LICENSE`. When nothing did, the other jobs are skipped through their `if:`, and GitHub counts a skipped job as passing a required check.
+- **Why not `paths-ignore`:** it skips the whole workflow, which leaves the required checks waiting and blocks the merge.
+- **The integration matrix is gated per step:** a matrix job skipped at job level reports a single check with the unexpanded name (`integration (compose ${{ matrix.role }})`), so the two required integration checks would never report.
+- **If the `changes` job fails,** every gated job runs.
+- **What it runs on:** the scheduled workflow and the release workflow are ungated.
+

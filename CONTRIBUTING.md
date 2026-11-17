@@ -74,6 +74,8 @@ Branch protection on `main` and Renovate automerge require these CI job names:
 - `integration (compose minimum)`
 - `integration (compose latest)`
 
+A change that touches only Markdown, `docs/`, the `*.example` walkthroughs or `LICENSE` skips these jobs, and the skipped jobs count as passed. The `changes` job decides this. If it fails, every job runs.
+
 ## License
 
-By contributing contributors agree that their contributions are licensed under the [MIT License](LICENSE).
+Contributions are licensed under the [MIT License](LICENSE).
