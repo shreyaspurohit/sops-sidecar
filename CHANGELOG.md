@@ -13,6 +13,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - `sops-sidecar check` (validate inputs, print key names only) and `sops-sidecar version`.
 - Fail-closed startup: refuses a non-tmpfs output dir, `SOPS_AGE_KEY` in the environment, nested values, unsafe paths, a wrong key, and a SOPS file with no keys (a reload of one keeps the previous files and reports not ready).
 - Secret values are never logged or included in errors, verified by canary tests.
+- Post-quantum hybrid age keys (`age-keygen -pq`, `age1pq1...` recipients) work and are what the docs now use; key files may mix them with classic keys. Covered by tests.
+- README sections on adding, changing and removing a secret, and on adding or replacing an age key with `sops rotate`.
 - Structured JSON logs on stderr (one object per line), level set by `LOG_LEVEL`.
 - The tmpfs check asks the kernel (`fstatfs`) for the output dir's file system instead of parsing `/proc/mounts`.
 - Refuses SOPS files encrypted with `mac_only_encrypted`, whose unencrypted values would be unauthenticated.

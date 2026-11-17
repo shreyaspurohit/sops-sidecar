@@ -296,6 +296,41 @@ func TestDecryptSecondIdentityWorks(t *testing.T) {
 	}
 }
 
+// Post-quantum keys from `age-keygen -pq` are the recommended kind, and key
+// files may mix them with classic X25519 keys during a migration.
+func TestDecryptHybridIdentities(t *testing.T) {
+	hybridKey, hybridRecipient := sopstest.NewHybridIdentity(t)
+	classicKey, classicRecipient := sopstest.NewIdentity(t)
+	if !strings.HasPrefix(hybridRecipient, "age1pq1") {
+		t.Fatalf("hybrid recipient %.10s... lacks the age1pq1 prefix", hybridRecipient)
+	}
+	tests := []struct {
+		name      string
+		keyFile   []byte
+		recipient string
+	}{
+		{"hybrid key, hybrid recipient", hybridKey, hybridRecipient},
+		{"mixed key file, hybrid recipient", append(append([]byte{}, classicKey...), hybridKey...), hybridRecipient},
+		{"mixed key file, classic recipient", append(append([]byte{}, hybridKey...), classicKey...), classicRecipient},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ids, err := decrypt.ParseIdentities(tt.keyFile)
+			if err != nil {
+				t.Fatalf("ParseIdentities: %v", err)
+			}
+			file := sopstest.EncryptYAML(t, tt.recipient, sops.TreeBranch{item("k", canary)})
+			got, err := decrypt.Decrypt(file, decrypt.FormatYAML, ids)
+			if err != nil {
+				t.Fatalf("Decrypt: %v", err)
+			}
+			if len(got) != 1 || got[0].Key != "k" || !bytes.Equal(got[0].Value, []byte(canary)) {
+				t.Fatalf("Decrypt returned %d secrets, want k with the canary value", len(got))
+			}
+		})
+	}
+}
+
 func TestParseIdentities(t *testing.T) {
 	good, _ := sopstest.NewIdentity(t)
 	tests := []struct {

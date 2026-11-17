@@ -116,3 +116,15 @@ A load that yields no files (a SOPS file with no top-level keys) is an error, `c
 ## Untested appliance claim corrected (November 2026)
 
 Round 1, Claude #12 flagged that the README named NAS and Portainer appliance builds as tested. The finding was first rejected because the wording came from the spec. It was later adopted: the README now says the project is tested on Compose v2.20.0 and latest and has not yet been tested on those appliances. Docs never claim testing that did not happen.
+
+## Post-quantum age keys recommended
+
+The docs generate keys with `age-keygen -pq`, a hybrid of ML-KEM-768 and X25519. SOPS files are meant to be committed and copied, which is the "store now, decrypt later" case a hybrid key protects against. No code change was needed: `decrypt.ParseIdentities` uses `age.ParseIdentities`, which reads hybrid identities in age v1.3+, and sops v3.13.3 encrypts to `age1pq1` recipients. `TestDecryptHybridIdentities` locks this in, including key files that mix both kinds. Costs:
+- users need age 1.3+ to create the key;
+- the recipient is about 2,000 characters.
+
+Classic keys keep working.
+
+## Docs set `SOPS_AGE_KEY_FILE` explicitly
+
+On macOS, sops looks for `keys.txt` under `~/Library/Application Support/sops/age/` unless `XDG_CONFIG_HOME` is set (`getUserConfigDir` in sops v3.13.3), so the earlier "sops reads ~/.config/sops/age/keys.txt by default" failed there. The README and examples now export `SOPS_AGE_KEY_FILE` before using sops on the workstation. This is the host-side sops variable; the sidecar's own `SOPS_AGE_KEY_FILE` is set inside the container, and `SOPS_AGE_KEY` stays refused.

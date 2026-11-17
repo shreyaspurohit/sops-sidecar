@@ -30,6 +30,17 @@ func NewIdentity(t testing.TB) (keyFile []byte, recipient string) {
 	return []byte("# public key: " + id.Recipient().String() + "\n" + id.String() + "\n"), id.Recipient().String()
 }
 
+// NewHybridIdentity is NewIdentity for a post-quantum hybrid age identity
+// (ML-KEM-768 + X25519), the kind `age-keygen -pq` creates.
+func NewHybridIdentity(t testing.TB) (keyFile []byte, recipient string) {
+	t.Helper()
+	id, err := age.GenerateHybridIdentity()
+	if err != nil {
+		t.Fatalf("generate hybrid age identity: %v", err)
+	}
+	return []byte("# public key: " + id.Recipient().String() + "\n" + id.String() + "\n"), id.Recipient().String()
+}
+
 // EncryptYAML encrypts b for recipient as a YAML SOPS file with a single age
 // key group and a valid MAC, the way `sops -e` does.
 func EncryptYAML(t testing.TB, recipient string, b sops.TreeBranch) []byte {

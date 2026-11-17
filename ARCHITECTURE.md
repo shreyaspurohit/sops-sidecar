@@ -279,6 +279,7 @@ removed. `health` runs as a separate process, so there is no in-memory status.
 package sopstest
 
 func NewIdentity(t testing.TB) (keyFile []byte, recipient string)       // fresh X25519 identity file text
+func NewHybridIdentity(t testing.TB) (keyFile []byte, recipient string) // fresh post-quantum hybrid identity (age-keygen -pq)
 func EncryptYAML(t testing.TB, recipient string, b sops.TreeBranch) []byte // single age key group, MAC set, like `sops -e`
 func EncryptJSON(t testing.TB, recipient string, b sops.TreeBranch) []byte
 ```
