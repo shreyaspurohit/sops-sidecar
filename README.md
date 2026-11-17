@@ -63,7 +63,7 @@ docker compose exec db sh -c 'PGPASSWORD="$(cat /run/secrets/postgres_password)"
 Edit the SOPS file in place, then signal the sidecar:
 
 ```sh
-sops edit secrets.sops.yaml   # uses ~/.config/sops/age/keys.txt; age.key is root-owned and unreadable to you
+sops edit secrets.sops.yaml   # uses ~/.config/sops/age/keys.txt; your user can't read the root-owned age.key
 docker compose kill -s HUP secrets
 ```
 
