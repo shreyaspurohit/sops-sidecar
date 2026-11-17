@@ -1,6 +1,29 @@
 # Recipe: Synology Container Manager
 
-How to run a sops-sidecar stack on a Synology NAS with Container Manager. Compose there may be v2.20.x, the minimum version this project is tested against. This recipe has not yet been tried on a real NAS; please open an issue if a step does not match what you see.
+How to run a sops-sidecar stack on a Synology NAS with Container Manager. Compose there may be v2.20.x, the minimum version this project is tested against. Please open an issue if a step does not match what you see.
+
+## What has been tested
+
+The postgres example was run once on a real NAS: DSM 7.4.1-90080 Update 1, x86_64, kernel 4.4, with Container Manager's Docker 24.0.2 and Compose v2.20.1. The stack was started with `docker compose` over SSH. The image was built from source, because no release was published yet.
+
+| Check | Result |
+|---|---|
+| The sidecar goes healthy before postgres starts (`depends_on: condition: service_healthy`) | Works |
+| `age.key` owned by `0:0` with mode `0400`, read by the sidecar with every capability but `CHOWN` and `FOWNER` dropped | Works |
+| The secret file in the db container | Owned `70:70`, mode `0400`, on tmpfs |
+| Postgres over the network | Accepts the password from the secret file and refuses a wrong one |
+| Editing the SOPS file in place, then `docker compose kill -s HUP secrets` | Reloads the new value |
+| Postgres started before the sidecar (what a reboot does) | Restarts until the secret file exists, then comes up |
+| Secret values in either container's logs | None appear |
+
+**Not tested yet:**
+- creating the project in the Container Manager UI;
+- a real reboot;
+- the boot task below.
+
+**One difference from other Docker hosts.** On this kernel, the app's read-only mount of the secrets volume loses `nosuid,nodev,noexec`. `cat /proc/mounts` in the app container shows only `ro,relatime,…`. The sidecar's writable mount keeps the flags, and secret file modes are capped at `0777`, so no setuid file can be written.
+
+**Bind-mount paths must exist.** This Docker refuses a bind mount whose source path is missing ("Bind mount failed: ... does not exist") instead of creating it. Create `age.key`, the SOPS file and the map file before starting the stack.
 
 ## Project setup
 

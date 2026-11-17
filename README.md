@@ -15,7 +15,7 @@ Why it is different:
 5. **Per-file owner and mode.** Each secret file can be chowned and chmodded for the consuming container's user.
 6. **Fails closed.** Wrong key, bad file, a SOPS file with no keys, or a non-tmpfs output dir: it refuses, stays unhealthy, and dependent services do not start.
 
-Tested on Compose v2.20.0 and the latest release. It is meant for appliance builds such as Synology Container Manager and Portainer, which often ship older Compose, but it has not yet been tested on them.
+Tested on Compose v2.20.0 and the latest release. It is meant for appliance builds that often ship older Compose. The postgres example has been run on one Synology NAS (DSM 7.4.1, x86_64, Container Manager's Docker 24.0.2 and Compose v2.20.1; see the [recipe](docs/recipes/synology.md) for what was and wasn't covered). Portainer is untested.
 
 See [docs/comparison.md](docs/comparison.md) for how this relates to other tools.
 
@@ -26,17 +26,21 @@ You need Docker with Compose, plus `age` and `sops` (only to create the encrypte
 ```sh
 cp -r examples/postgres my-stack && cd my-stack
 
-# 1. Generate an age key. Keep it out of git. Keep your personal copy in
-#    ~/.config/sops/age/keys.txt (sops reads it by default) and make age.key the
-#    deployment copy: the sidecar drops every capability, so even root cannot
-#    read a key file it does not own, and age.key must belong to the sidecar's
-#    uid (0 here; 65532 for examples/generic-app).
+# 1. Generate one age key and keep two copies of it. Keep both out of git.
+#    - ~/.config/sops/age/keys.txt is yours: sops reads it by default to
+#      encrypt and edit.
+#    - age.key is the sidecar's: it must belong to the sidecar's uid (0 here;
+#      65532 for examples/generic-app), because the sidecar drops every
+#      capability and even root then cannot read a key file it does not own.
+#      After the chown you can't read age.key yourself, which is why every
+#      later command uses keys.txt. Both files hold the same key.
 mkdir -p ~/.config/sops/age
 [ -e ~/.config/sops/age/keys.txt ] || age-keygen -o ~/.config/sops/age/keys.txt
 cp ~/.config/sops/age/keys.txt age.key
 sudo chown 0:0 age.key && sudo chmod 0400 age.key
 
-# 2. Write the plaintext, encrypt it to your key, delete the plaintext.
+# 2. Write the plaintext, encrypt it to the key's public half (the "age1..."
+#    recipient, the same for both copies), delete the plaintext.
 printf 'postgres_password: change-me\n' > plaintext.yaml
 sops encrypt --age "$(age-keygen -y ~/.config/sops/age/keys.txt)" \
   --input-type yaml --output-type yaml plaintext.yaml > secrets.sops.yaml
@@ -70,7 +74,7 @@ Each file is replaced atomically, so a reader never sees a partial file. The set
 - The SOPS file and the map file must be readable by the sidecar's uid (`0644` is fine: neither holds plaintext).
 - `age.key` must be owned by the sidecar's uid and mode `0400` (with `cap_drop: [ALL]` not even root can read a bind-mounted file it does not own). Keep a separate, readable copy of the key for `sops edit`.
 - The output dir belongs to the sidecar. At startup it adopts the regular files already there, so the files of keys removed while it was stopped are deleted by the first load. Do not put anything else in that volume.
-- The examples mount the tmpfs with `nosuid,nodev,noexec` in addition to the size and mode options.
+- The examples mount the tmpfs with `nosuid,nodev,noexec` in addition to the size and mode options. On one NAS (kernel 4.4, Docker 24.0.2) the app's read-only (`:ro`) mount of the volume showed none of these three flags; the cause wasn't investigated. The sidecar's own writable mount keeps them, and secret file modes are capped at `0777`, so no setuid file can be written.
 
 ## Which example do I start from?
 
