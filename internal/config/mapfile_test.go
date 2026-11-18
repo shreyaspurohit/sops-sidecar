@@ -180,7 +180,7 @@ func TestParseMapErrors(t *testing.T) {
 		{"negative default uid", "defaults: {uid: -1}\nfiles:\n  - key: a\n", "uid"},
 		{"uid is chown's unchanged sentinel", "files:\n  - {key: a, uid: 4294967295}\n", "uid"},
 		{"gid wraps to root on 32 bits", "files:\n  - {key: a, gid: 4294967296}\n", "gid"},
-		{"uid not a number", "files:\n  - {key: a, uid: root}\n", "cannot unmarshal"},
+		{"uid not a number", "files:\n  - {key: a, uid: root}\n", "`root` into int"},
 		{"two documents", "files:\n  - key: a\n---\nfiles:\n  - key: b\n", "single YAML document"},
 		{"second document malformed", "files:\n  - key: a\n---\n: [\n", "single YAML document"},
 		{"not yaml", "files: [", "map file"},

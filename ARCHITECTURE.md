@@ -228,7 +228,7 @@ func FromEnv(lookup LookupFunc) (Config, error)
 // written under its own name with the built-in defaults.
 type Map struct{ /* unexported */ }
 func ParseMap(data []byte) (Map, error)
-    // strict YAML (go.yaml.in/yaml/v3, KnownFields): `defaults: {uid, gid, mode}`
+    // strict YAML (go.yaml.in/yaml/v4, KnownFields): `defaults: {uid, gid, mode}`
     // (all optional) and `files: [{key, path, uid, gid, mode}]` (key required,
     // path defaults to key, others inherit defaults, then writer built-ins).
     // Errors: empty files list, empty/duplicate key, invalid/duplicate path
