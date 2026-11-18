@@ -20,7 +20,7 @@ import (
 	"github.com/getsops/sops/v3/logging"
 	"github.com/getsops/sops/v3/stores/json"
 	sopsyaml "github.com/getsops/sops/v3/stores/yaml"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Format is the serialization of a SOPS file.

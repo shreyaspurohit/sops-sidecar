@@ -13,7 +13,7 @@ import (
 	"github.com/getsops/sops/v3"
 	"github.com/getsops/sops/v3/logging"
 	"github.com/google/go-cmp/cmp"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/shreyaspurohit/sops-sidecar/internal/decrypt"
 	"github.com/shreyaspurohit/sops-sidecar/internal/sopstest"
