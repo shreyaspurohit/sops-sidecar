@@ -4,7 +4,9 @@
     "config:best-practices",
     ":semanticCommits"
   ],
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "ignorePaths": [
     "**/node_modules/**",
     "**/vendor/**"
