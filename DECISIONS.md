@@ -19,7 +19,7 @@ Each entry states the decision and its reason. Newest sections are at the bottom
 - All CLI tools pinned in `.tool-versions` and installed with asdf 0.20.2, so laptop and CI share one source of versions.
 - `zizmor` has no asdf plugin, so it falls back to `uvx zizmor@<version>` with `uv` installed by asdf. The version is set once in `scripts/zizmor.sh` and tracked by a Renovate `customManagers` regex.
 - `deadcode`, `govulncheck` and `staticcheck` are `tool` directives in `go.mod`, run with `go tool`, so they are project-local and version-pinned.
-- `nodejs` in `.tool-versions` (24.x LTS, because Renovate's engine range is `^24.11`). It is needed only to run `renovate` and `renovate-config-validator` via `npx` for local verification.
+- `nodejs` in `.tool-versions` (24.x LTS, because Renovate's engine range is `^24.11`). It is needed only to run `renovate` and `renovate-config-validator` via `npx` for local verification. It stays on 24.x through a Renovate `allowedVersions` rule: with Renovate 44.239.1 on Node 26.13.1, `renovate-config-validator` warns "RE2 not usable, falling back to RegExp: regex validation may be inaccurate", and on Node 24 it loads RE2. Node 24 is supported until April 2028. Lift the rule once the validator loads RE2 on Node 26.
 - Trivy is chosen over Grype for image scanning: one tool, an asdf plugin exists, and the Renovate asdf manager supports it.
 
 ## Design

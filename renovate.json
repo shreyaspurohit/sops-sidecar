@@ -167,6 +167,13 @@
         "github-actions"
       ],
       "groupName": "github actions"
+    },
+    {
+      "description": "Node stays on 24.x: on Node 26 the Renovate config validator cannot load RE2 and falls back to RegExp, so regex validation may be inaccurate",
+      "matchDatasources": [
+        "node-version"
+      ],
+      "allowedVersions": "<26"
     }
   ]
 }
