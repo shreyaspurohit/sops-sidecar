@@ -24,7 +24,7 @@ env:
   # The one exact tool version allowed in this workflow: npx needs it pinned, and
   # Renovate bumps it through the annotation below.
   # renovate: datasource=npm depName=renovate
-  RENOVATE_VERSION: 44.206.3
+  RENOVATE_VERSION: 44.239.1
 
 jobs:
   validate:
