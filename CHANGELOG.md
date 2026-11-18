@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-18
+
 ### Added
 
 - `sops-sidecar run` decrypts one SOPS file (YAML or JSON, top-level scalar keys) in-process with an age key and writes each secret as its own file, byte-exact and atomically, into a tmpfs output dir.
@@ -23,3 +25,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Static, multi-arch (`linux/amd64`, `linux/arm64`) non-root image, with examples for Postgres and a generic `*_FILE` app.
 - Integration tests on Compose v2.20.0 and latest, plus CI, release (signed images, SBOM, provenance) and Renovate configuration.
 - Documentation: security model, tool comparison, reboot ordering, platform recipes.
+
+[Unreleased]: https://github.com/shreyaspurohit/sops-sidecar/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/shreyaspurohit/sops-sidecar/releases/tag/v0.1.0
