@@ -40,7 +40,7 @@ go tool staticcheck -tags integration ./...
 ./scripts/deadcode.sh
 go tool govulncheck ./...
 actionlint
-scripts/zizmor.sh .github/workflows
+scripts/zizmor.sh .github
 ```
 
 Integration tests (need Docker; they download the pinned Compose binary into `.cache/`):
@@ -74,7 +74,13 @@ Branch protection on `main` and Renovate automerge require these CI job names:
 - `integration (compose minimum)`
 - `integration (compose latest)`
 
-A change that touches only Markdown, `docs/`, the `*.example` walkthroughs or `LICENSE` skips these jobs, and the skipped jobs count as passed. The `changes` job decides this. If it fails, every job runs.
+The `changes` job decides whether these jobs run, and skipped jobs count as passed:
+
+- **Docs-only changes skip them.** That is a change that touches only Markdown, `docs/`, the `*.example` walkthroughs or `LICENSE`.
+- **A push to `main` skips them when the merged pull request's CI passed on identical content.** The merged commit must have the same tree as the pull request head.
+- **If the `changes` job fails, every job runs.**
+
+On `main`, the `go-cache` job saves the Go module and build caches that the other jobs restore.
 
 ## License
 

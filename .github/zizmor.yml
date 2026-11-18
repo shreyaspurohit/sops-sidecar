@@ -1,0 +1,5 @@
+rules:
+  # actionlint 1.7.12 rejects the `$/` self-repository syntax this audit asks
+  # for, so local actions use `./`.
+  self-repository:
+    disable: true

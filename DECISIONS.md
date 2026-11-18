@@ -148,3 +148,11 @@ The first `v0.1.0` release run failed at signing with `exec: "cosign": executabl
 - **cosign left `.tool-versions`,** because the plugin cannot install it. It is needed locally only to verify a release.
 - **Nothing was published** by the failed run: no release, image, signature or transparency-log entry.
 
+## CI reuses the pull request's run on main, and caches Go builds
+
+The `main` ruleset requires an up-to-date branch and squash merges, so a merged commit has the same tree as the pull request head that CI already tested.
+- **Reuse:** on a push to `main`, the `changes` job finds the merged pull request through the API and compares the two trees. When they match and the pull request's CI run concluded `success`, the other jobs are skipped and `main` still gets a passing run on its exact commit. A missing pull request, a different tree, an unfinished or failed run, or an API error runs every job.
+- **Go cache:** `actions/cache` (v6.1.0, MIT, pinned by SHA) holds `GOMODCACHE` and `GOCACHE`, keyed by `.tool-versions` and `go.sum`. Only the `go-cache` job on `main` saves it, after compiling what the other jobs compile. Pull requests can restore caches saved on `main` but not each other's, so `main` keeps them current even when its other jobs are skipped, and no pull request writes a cache. The release workflow uses no cache.
+- **Integration image:** the integration jobs compile the binary on the runner, using the cache, and package it with the Dockerfile's `prebuilt` stage, which is how release images are built. The `docker` job still builds the full Dockerfile for both architectures.
+- **Local actions use `./`,** and zizmor's `self-repository` audit is off in `.github/zizmor.yml`. That audit asks for GitHub's `$/` syntax (July 2026), which actionlint 1.7.12 rejects. Revisit when actionlint supports it.
+
