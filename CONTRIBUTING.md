@@ -12,7 +12,6 @@ asdf plugin add golangci-lint
 asdf plugin add gofumpt
 asdf plugin add actionlint
 asdf plugin add goreleaser
-asdf plugin add cosign
 asdf plugin add trivy
 asdf plugin add sops
 asdf plugin add age
@@ -26,6 +25,7 @@ asdf install
 - `zizmor` has no asdf plugin, so `scripts/zizmor.sh` runs it through `uvx` (uv comes from asdf).
 - Go dev tools (`staticcheck`, `govulncheck`, `deadcode`) are `tool` directives in `go.mod` and run with `go tool`.
 - Install Docker and Docker Compose separately. asdf does not manage them.
+- cosign is needed only to verify a release (see [SECURITY.md](SECURITY.md)). The release workflow installs it with `sigstore/cosign-installer`.
 
 ## Checks to run before a pull request
 
