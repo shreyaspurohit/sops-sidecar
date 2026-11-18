@@ -19,10 +19,11 @@ env:
   ASDF_VERSION: 0.20.2
 
 jobs:
-  # Docs-only changes skip the other jobs. A job skipped by its `if:` reports
-  # success, so the required checks still pass. The workflow itself always runs,
-  # because `paths-ignore` would leave the required checks waiting forever.
-  # If this job fails, every gated job runs.
+  # The other jobs skip for docs-only changes, and on main when the merged
+  # pull request's CI already passed on identical content. A job skipped by its
+  # `if:` reports success, so the required checks still pass. The workflow
+  # itself always runs, because `paths-ignore` would leave the required checks
+  # waiting forever. If this job fails, every gated job runs.
   changes:
     name: changes
     runs-on: ubuntu-latest
@@ -30,8 +31,10 @@ jobs:
     permissions:
       contents: read
       pull-requests: read # paths-filter lists a pull request's files through the API
+      actions: read # look up the merged pull request's CI run
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      run: ${{ steps.filter.outputs.code == 'true' && steps.reuse.outputs.reused != 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -50,11 +53,38 @@ jobs:
               - '!docs/**'
               - '!**/*.example'
               - '!LICENSE'
+      - id: reuse
+        # A squash merge of an up-to-date branch keeps the pull request's tree,
+        # so its passing CI run covers this commit. Any mismatch runs CI.
+        if: ${{ github.event_name == 'push' && steps.filter.outputs.code == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          pr_head="$(gh api "repos/${REPO}/commits/${SHA}/pulls" --jq '[.[] | select(.merged_at != null)][0].head.sha // empty')"
+          if [ -z "${pr_head}" ]; then
+            echo "No merged pull request for ${SHA}; running CI."
+            exit 0
+          fi
+          merged_tree="$(gh api "repos/${REPO}/git/commits/${SHA}" --jq .tree.sha)"
+          pr_tree="$(gh api "repos/${REPO}/git/commits/${pr_head}" --jq .tree.sha)"
+          if [ "${merged_tree}" != "${pr_tree}" ]; then
+            echo "${SHA} differs from pull request head ${pr_head}; running CI."
+            exit 0
+          fi
+          conclusion="$(gh api "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${pr_head}&event=pull_request&status=completed" --jq '.workflow_runs[0].conclusion // empty')"
+          if [ "${conclusion}" != "success" ]; then
+            echo "CI for pull request head ${pr_head} is '${conclusion}'; running CI."
+            exit 0
+          fi
+          echo "Reusing the passing CI run of pull request head ${pr_head}."
+          echo "reused=true" >> "${GITHUB_OUTPUT}"
 
   lint:
     name: lint
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.run == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -64,6 +94,7 @@ jobs:
       - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
         with:
           asdf_version: ${{ env.ASDF_VERSION }}
+      - uses: ./.github/actions/go-cache
       - name: gofumpt
         run: |
           unformatted="$(gofumpt -l .)"
@@ -86,7 +117,7 @@ jobs:
   workflow-lint:
     name: workflow-lint
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.run == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -101,12 +132,12 @@ jobs:
       - name: shellcheck
         run: shellcheck scripts/*.sh
       - name: zizmor
-        run: scripts/zizmor.sh .github/workflows
+        run: scripts/zizmor.sh .github
 
   test:
     name: test
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.run == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -116,6 +147,7 @@ jobs:
       - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
         with:
           asdf_version: ${{ env.ASDF_VERSION }}
+      - uses: ./.github/actions/go-cache
       - name: unit tests with coverage gates
         run: ./scripts/coverage.sh
       - name: upload coverage profile
@@ -129,7 +161,7 @@ jobs:
   govulncheck:
     name: govulncheck
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.run == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -139,13 +171,14 @@ jobs:
       - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
         with:
           asdf_version: ${{ env.ASDF_VERSION }}
+      - uses: ./.github/actions/go-cache
       - name: govulncheck
         run: go tool govulncheck ./...
 
   docker:
     name: docker
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.code == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.run == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -187,18 +220,25 @@ jobs:
             version: v5.7.0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.code == 'true' }}
+        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.run == 'true' }}
         with:
           persist-credentials: false
       - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
-        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.code == 'true' }}
+        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.run == 'true' }}
         with:
           asdf_version: ${{ env.ASDF_VERSION }}
+      - uses: ./.github/actions/go-cache
+        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.run == 'true' }}
       - name: build image
-        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.code == 'true' }}
-        run: docker build -t sops-sidecar:test .
+        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.run == 'true' }}
+        # The release image is built the same way: a binary compiled outside
+        # Docker, packaged by the Dockerfile's prebuilt stage.
+        run: |
+          ctx="${RUNNER_TEMP}/image"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o "${ctx}/linux/amd64/sops-sidecar" ./cmd/sops-sidecar
+          docker build --platform linux/amd64 --target prebuilt -f Dockerfile -t sops-sidecar:test "${ctx}"
       - name: integration tests
-        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.code == 'true' }}
+        if: ${{ needs.changes.result != 'success' || needs.changes.outputs.run == 'true' }}
         env:
           COMPOSE_VERSION: ${{ matrix.version }}
           SIDECAR_IMAGE: sops-sidecar:test
@@ -207,3 +247,31 @@ jobs:
           COMPOSE_BIN="$(scripts/fetch-compose.sh "${COMPOSE_VERSION}")"
           export COMPOSE_BIN
           go test -tags integration -count=1 -v ./test/integration/...
+
+  go-cache:
+    name: go-cache
+    needs: changes
+    # Pull requests restore caches saved on main, never each other's, so main
+    # refreshes them even when its other jobs are skipped.
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.changes.outputs.code != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: asdf-vm/actions/install@b7bcd026f18772e44fe1026d729e1611cc435d47 # v4.0.1
+        with:
+          asdf_version: ${{ env.ASDF_VERSION }}
+      - uses: ./.github/actions/go-cache
+      - name: compile what the other jobs compile
+        run: |
+          go mod download
+          go build tool
+          go vet -tags integration ./...
+          go test -race -covermode=atomic -run '^$' ./...
+          go test -tags integration -run '^$' ./test/integration/...
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /dev/null ./cmd/sops-sidecar
+      - uses: ./.github/actions/go-cache
+        with:
+          save: "true"
