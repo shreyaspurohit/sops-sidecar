@@ -141,3 +141,10 @@ A `changes` job in `ci.yml` uses `dorny/paths-filter` (v4.0.3, MIT, pinned by SH
 - **If the `changes` job fails,** every gated job runs.
 - **What it runs on:** the scheduled workflow and the release workflow are ungated.
 
+## cosign is installed by sigstore/cosign-installer, not asdf
+
+The first `v0.1.0` release run failed at signing with `exec: "cosign": executable file not found`. The asdf cosign plugin verifies the downloaded binary with the older `.sig` and public-key scheme. That check fails for cosign 3.x, and the plugin then deletes the binary and still exits 0. CI never signs, so only the release job hit it.
+- **Fix:** `release.yml` installs cosign with `sigstore/cosign-installer`, pinned by SHA. The action checks the binary against SHA-256 hashes stored in the action itself. The cosign version is pinned in the step and tracked by Renovate.
+- **cosign left `.tool-versions`,** because the plugin cannot install it. It is needed locally only to verify a release.
+- **Nothing was published** by the failed run: no release, image, signature or transparency-log entry.
+
