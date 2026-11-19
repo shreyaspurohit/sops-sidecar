@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-19
+
 ### Added
 
 - The map file accepts the same key in several entries, each with its own `path`, owner and mode, so one secret can be written to several files for consumers that run as different users. Duplicate file names are still refused.
@@ -30,5 +32,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Integration tests on Compose v2.20.0 and latest, plus CI, release (signed images, SBOM, provenance) and Renovate configuration.
 - Documentation: security model, tool comparison, reboot ordering, platform recipes.
 
-[Unreleased]: https://github.com/shreyaspurohit/sops-sidecar/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/shreyaspurohit/sops-sidecar/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/shreyaspurohit/sops-sidecar/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/shreyaspurohit/sops-sidecar/releases/tag/v0.1.0
