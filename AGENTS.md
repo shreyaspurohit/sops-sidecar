@@ -41,8 +41,8 @@ Layout:
   - A default or env var change goes in the README configuration table, the single place every default is listed.
   - A user-visible change goes in `CHANGELOG.md` under Unreleased.
   - A non-obvious choice or a rejected suggestion goes in `DECISIONS.md`.
-- **Honest docs.** Never write "tested", "verified" or "works on X" unless a test actually ran on X. Today that means Compose v2.20.0 and latest, on Linux amd64 (CI runners), Linux arm64 and macOS Docker Desktop, plus one manual run of the postgres example on the NAS model in the README compatibility line, with its scope recorded in the recipe. Docs state only what was tested. Comparisons with other tools must credit their real advantages and mark inferred claims. Run a suggested setup before documenting it.
-- **The NAS vendor is named in exactly three places:** the README compatibility line, the NAS paragraph of `docs/reboot-ordering.md`, and the one recipe in `docs/recipes/`. Don't add a fourth mention of the vendor or its OS, links included. Check with a case-insensitive `git grep` for the vendor name.
+- **Honest docs.** Never write "tested", "verified" or "works on X" unless a test actually ran on X. Today that means Compose v2.20.0 and latest, on Linux amd64 (CI runners), Linux arm64 and macOS Docker Desktop, plus manual runs on the NAS model in the README compatibility line (the postgres example, and the gluetun recipe on the v0.2.0 release), each with its scope recorded in its recipe. Docs state only what was tested. Comparisons with other tools must credit their real advantages and mark inferred claims. Run a suggested setup before documenting it.
+- **The NAS vendor is named in exactly three places:** the README compatibility line, the NAS paragraph of `docs/reboot-ordering.md`, and the NAS recipe in `docs/recipes/`. Other recipes describe the host generically. Don't add a fourth mention of the vendor or its OS, links included. Check with a case-insensitive `git grep` for the vendor name.
 - **Explain the numbers.** When docs tell users to run something like `chown 0:0` or `uid=65532`, say where the number comes from.
 
 ## Testing
