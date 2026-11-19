@@ -106,6 +106,9 @@ func ParseMap(data []byte) (Map, error) {
 			return Map{}, fmt.Errorf("files[%d]: %w", i, err)
 		}
 		if other, dup := names[e.name]; dup {
+			if other == e.key {
+				return Map{}, fmt.Errorf("files[%d]: key %q is written to file name %q more than once", i, e.key, e.name)
+			}
 			return Map{}, fmt.Errorf("files[%d]: file name %q is used by keys %q and %q", i, e.name, other, e.key)
 		}
 		names[e.name] = e.key
