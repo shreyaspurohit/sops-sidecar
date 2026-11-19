@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Recipe for running gluetun with its WireGuard config file from sops-sidecar.
+- The NAS recipe sets the Compose project name, so `docker compose` run from a shell updates a project created in the NAS's container UI.
+
 ## [0.2.0] - 2026-11-19
 
 ### Added

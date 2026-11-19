@@ -19,12 +19,24 @@ The postgres example was run once on a real NAS: DSM 7.4.1-90080 Update 1, x86_6
 
 **One difference from other Docker hosts.** On this kernel, the app's read-only mount of the secrets volume loses `nosuid,nodev,noexec`, and `cat /proc/mounts` in the app container shows only `ro,relatime,…`. The sidecar's writable mount keeps the flags, and secret file modes are capped at `0777`, so no setuid file can be written.
 
+**A key in its own shared folder.** A later run used the released v0.2.0 image with the sidecar as uid 65532 and every capability dropped. Its `age.key` (`65532:65532`, mode `0400`) sat in a separate shared folder with **No access** for every user and group. The sidecar read the key and decrypted the SOPS file. An SSH login to an administrator account could not list the key.
+
 **Bind-mount paths must exist.** This Docker refuses a bind mount whose source path is missing ("Bind mount failed: ... does not exist") and does not create it. Create `age.key`, the SOPS file and the map file before starting the stack.
 
 ## Project setup
 
 1. Put the stack in a project folder, for example inside a `docker` shared folder, containing `compose.yaml`, `secrets.sops.yaml` and `secrets.map.yaml` (see [examples/postgres](../../examples/postgres)).
 2. In Container Manager, open **Project**, choose **Create**, set the path to that folder and use the existing `compose.yaml`.
+
+**Set the project name in `compose.yaml`.** Container Manager gives the project the name typed when creating it. `docker compose` run from a shell takes the folder's name instead. When the two differ, `docker compose up -d` over SSH starts a second project and fails with `The container name "/<name>" is already in use`. Add a top-level `name:` that matches the Container Manager project, so both use the same one:
+
+```yaml
+name: <project-name>
+services:
+  ...
+```
+
+Check the existing name with `docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' <container>`. If a failed run already created containers or a volume under the folder's name, remove only those with `docker compose -p <folder-name> down -v`.
 
 ## Keep `age.key` outside the project folder
 
