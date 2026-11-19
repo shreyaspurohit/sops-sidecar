@@ -27,6 +27,20 @@ const (
     gid: 70
     mode: "0400"
 `
+	// mapSharedPassword writes one key to a database file and an application file.
+	mapSharedPassword = `files:
+  - key: postgres_password
+    uid: 70
+    gid: 70
+    mode: "0400"
+  - key: postgres_password
+    path: app_password
+    uid: 1000
+    gid: 1000
+    mode: "0440"
+`
+	appPasswordPath = "/run/secrets/app_password"
+
 	mapPasswordOnly = `files:
   - key: postgres_password
     uid: 70
@@ -58,6 +72,27 @@ func TestPostgresLogin(t *testing.T) {
 	}
 	if got, err := s.exec(dbService, "stat", "-c", "%u:%g %a", passwordPath); err != nil || strings.TrimSpace(got) != "70:70 400" {
 		t.Errorf("owner and mode of the secret file: got %q, err %v; want 70:70 400", strings.TrimSpace(got), err)
+	}
+	s.assertNoLeaks()
+}
+
+// One key written to two files, each owned by its own consumer's uid.
+func TestOneKeyToTwoFiles(t *testing.T) {
+	s, recipient := newStack(t, postgresExample)
+	password := s.newSecret()
+	s.writeInPlace("secrets.map.yaml", []byte(mapSharedPassword))
+	s.writeSOPS(recipient, passwordKey, password)
+	s.up()
+
+	s.waitSecretsHealthy()
+	s.waitLogin(password)
+	for path, want := range map[string]string{passwordPath: "70:70 400", appPasswordPath: "1000:1000 440"} {
+		if got, err := s.exec(dbService, "stat", "-c", "%u:%g %a", path); err != nil || strings.TrimSpace(got) != want {
+			t.Errorf("owner and mode of %s: got %q, err %v; want %s", path, strings.TrimSpace(got), err, want)
+		}
+		if s.fileSHA256(dbService, path) != sha256Hex(password) {
+			t.Errorf("%s has the wrong content", path)
+		}
 	}
 	s.assertNoLeaks()
 }

@@ -201,6 +201,20 @@ files:
     mode: "0400"
 ```
 
+A key may appear in several entries when each entry has its own `path`. Use this when two containers share one secret but run as different users, so each gets a copy it owns. Two entries with the same file name are refused. A key missing from the SOPS file is an error, however many entries list it.
+
+```yaml
+files:
+  - key: db_password
+    path: db_password_postgres   # read by the database container
+    uid: 70                      # postgres user in the postgres:*-alpine images
+    gid: 70
+  - key: db_password
+    path: db_password_app        # read by the application container
+    uid: 1000                    # the uid the application image runs as
+    gid: 1000
+```
+
 ## Commands and exit codes
 
 | Command | Does |

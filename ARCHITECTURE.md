@@ -231,7 +231,8 @@ func ParseMap(data []byte) (Map, error)
     // strict YAML (go.yaml.in/yaml/v4, KnownFields): `defaults: {uid, gid, mode}`
     // (all optional) and `files: [{key, path, uid, gid, mode}]` (key required,
     // path defaults to key, others inherit defaults, then writer built-ins).
-    // Errors: empty files list, empty/duplicate key, invalid/duplicate path
+    // A key may appear in several entries, each with its own path, owner and mode.
+    // Errors: empty files list, empty key, invalid/duplicate path
     // (via writer.ParseName), invalid mode (writer.ParseMode), uid/gid outside 0..writer.MaxID,
     // multiple YAML documents.
 
@@ -246,7 +247,7 @@ type Plan struct {
 func (m Map) Plan(secrets []Secret) (Plan, error)   // secrets are []decrypt.Secret
     // zero Map: every secret, name = writer.ParseName(key) (error naming the key
     // if invalid). Parsed Map: only listed keys; a listed key missing from
-    // secrets is an error naming it; unlisted keys counted in Ignored.
+    // secrets is an error naming it; unlisted keys counted in Ignored (each key once, however many entries list it).
     // A plan with no entries is ErrNoSecrets, never an empty Plan; cmd's apply
     // re-checks before writing so an empty plan can never remove every file.
 var ErrNoSecrets error

@@ -183,6 +183,42 @@ func TestServeReload(t *testing.T) {
 	}
 }
 
+// A key listed twice is written to both files, and a reload that drops one
+// entry removes only that file.
+func TestServeOneKeyToSeveralFiles(t *testing.T) {
+	f := newFixture(t)
+	f.env[config.EnvMapFile] = f.writeFile("map.yaml", []byte("files:\n  - {key: db_password, path: pw_db}\n  - {key: db_password, path: pw_app, mode: '0440'}\n"))
+	r := f.start()
+	r.waitLogged("secrets written", 1)
+
+	for _, name := range []string{"pw_db", "pw_app"} {
+		if got := readFile(t, filepath.Join(f.out, name)); got != canary {
+			t.Errorf("%s = %q", name, got)
+		}
+	}
+	if info, err := os.Stat(filepath.Join(f.out, "pw_app")); err != nil || info.Mode().Perm() != 0o440 {
+		t.Errorf("pw_app mode: %v, %v", info, err)
+	}
+
+	f.writeFile("map.yaml", []byte("files:\n  - {key: db_password, path: pw_db}\n"))
+	r.reloadAndWait("secrets written")
+
+	if _, err := os.Stat(filepath.Join(f.out, "pw_app")); !os.IsNotExist(err) {
+		t.Errorf("dropped entry's file still present: %v", err)
+	}
+	if got := readFile(t, filepath.Join(f.out, "pw_db")); got != canary {
+		t.Errorf("pw_db = %q", got)
+	}
+	if !r.ready() {
+		t.Error("not ready after reload")
+	}
+	if code := r.stop(); code != exitOK {
+		t.Errorf("exit = %d", code)
+	}
+	noCanary(t, r.log.String())
+	assertJSONLines(t, r.log.String())
+}
+
 func TestServeFailedReloadThenRecovery(t *testing.T) {
 	f := newFixture(t)
 	r := f.start()

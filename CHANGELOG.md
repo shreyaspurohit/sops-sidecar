@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- The map file accepts the same key in several entries, each with its own `path`, owner and mode, so one secret can be written to several files for consumers that run as different users. Duplicate file names are still refused.
+
 ## [0.1.0] - 2026-11-18
 
 ### Added
