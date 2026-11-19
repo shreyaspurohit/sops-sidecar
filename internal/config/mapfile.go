@@ -82,9 +82,10 @@ func (m *rawMode) UnmarshalYAML(n *yaml.Node) error {
 }
 
 // ParseMap parses and validates a map file. The schema is strict: unknown
-// fields, a second YAML document, an empty files list, empty or duplicate
-// keys, invalid or duplicate file names, invalid modes, and ids outside 0..writer.MaxID are
-// all errors.
+// fields, a second YAML document, an empty files list, empty keys, invalid or
+// duplicate file names, invalid modes, and ids outside 0..writer.MaxID are all
+// errors. A key may appear in several entries, each with its own file name,
+// owner and mode.
 func ParseMap(data []byte) (Map, error) {
 	raw, err := decodeMap(data)
 	if err != nil {
@@ -98,20 +99,19 @@ func ParseMap(data []byte) (Map, error) {
 		return Map{}, fmt.Errorf("defaults: %w", err)
 	}
 	var m Map
-	keys := make(map[string]struct{}, len(raw.Files))
 	names := make(map[writer.Name]string, len(raw.Files))
 	for i, f := range raw.Files {
 		e, err := resolveFile(f, defaults)
 		if err != nil {
 			return Map{}, fmt.Errorf("files[%d]: %w", i, err)
 		}
-		if _, dup := keys[e.key]; dup {
-			return Map{}, fmt.Errorf("files[%d]: key %q is listed more than once", i, e.key)
-		}
 		if other, dup := names[e.name]; dup {
+			if other == e.key {
+				return Map{}, fmt.Errorf("files[%d]: key %q is written to file name %q more than once", i, e.key, e.name)
+			}
 			return Map{}, fmt.Errorf("files[%d]: file name %q is used by keys %q and %q", i, e.name, other, e.key)
 		}
-		keys[e.key], names[e.name] = struct{}{}, e.key
+		names[e.name] = e.key
 		m.entries = append(m.entries, e)
 	}
 	return m, nil
@@ -193,7 +193,8 @@ func resolveFile(f rawFile, defaults settings) (mapEntry, error) {
 // Plan computes the files to write for secrets. With the zero Map every
 // secret is written under its key as file name. With a parsed Map only the
 // listed keys are written, a listed key that is missing from secrets is an
-// error, and unlisted keys are counted in Ignored.
+// error, and unlisted keys are counted in Ignored. A key listed in several
+// entries yields one file per entry.
 func (m Map) Plan(secrets []decrypt.Secret) (Plan, error) {
 	entries := m.entries
 	if len(entries) == 0 {
@@ -207,7 +208,9 @@ func (m Map) Plan(secrets []decrypt.Secret) (Plan, error) {
 		byKey[s.Key] = s.Value
 	}
 	plan := Plan{Entries: make([]Entry, 0, len(entries))}
+	listed := make(map[string]struct{}, len(entries))
 	for _, e := range entries {
+		listed[e.key] = struct{}{}
 		v, ok := byKey[e.key]
 		if !ok {
 			return Plan{}, fmt.Errorf("key %q is listed in the map file but missing from the SOPS file", e.key)
@@ -217,7 +220,7 @@ func (m Map) Plan(secrets []decrypt.Secret) (Plan, error) {
 	if len(plan.Entries) == 0 {
 		return Plan{}, ErrNoSecrets
 	}
-	plan.Ignored = len(secrets) - len(entries)
+	plan.Ignored = len(secrets) - len(listed)
 	slices.SortFunc(plan.Entries, func(a, b Entry) int { return strings.Compare(a.File.Name.String(), b.File.Name.String()) })
 	return plan, nil
 }

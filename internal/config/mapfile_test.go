@@ -52,6 +52,22 @@ func TestParseMapPlan(t *testing.T) {
 			want:    []fileView{{"db", "db", "pw", 0o400, keep, keep}},
 		},
 		{
+			name:    "one key to two files with their own owner and mode",
+			yaml:    "defaults: {gid: 5}\nfiles:\n  - {key: pw, path: pw_app, uid: 1000, gid: 1000, mode: '0440'}\n  - {key: pw, path: pw_db, uid: 70}\n",
+			secrets: secrets("pw", "s3cret"),
+			want: []fileView{
+				{"pw", "pw_app", "s3cret", 0o440, 1000, 1000},
+				{"pw", "pw_db", "s3cret", 0o400, 70, 5},
+			},
+		},
+		{
+			name:        "ignored counts an unlisted key once and a shared key not at all",
+			yaml:        "files:\n  - {key: pw, path: pw_b}\n  - {key: pw, path: pw_a}\n",
+			secrets:     secrets("pw", "s", "other", "o", "third", "t"),
+			want:        []fileView{{"pw", "pw_a", "s", 0o400, keep, keep}, {"pw", "pw_b", "s", 0o400, keep, keep}},
+			wantIgnored: 2,
+		},
+		{
 			name:    "path overrides name",
 			yaml:    "files:\n  - key: db_password\n    path: postgres_password\n",
 			secrets: secrets("db_password", "pw"),
@@ -158,7 +174,8 @@ func TestParseMapErrors(t *testing.T) {
 		{"unknown defaults field", "defaults: {path: x}\nfiles:\n  - key: a\n", "path"},
 		{"missing key", "files:\n  - path: a\n", "key is required"},
 		{"empty key", "files:\n  - key: ''\n", "key is required"},
-		{"duplicate key", "files:\n  - {key: a}\n  - {key: a, path: b}\n", "more than once"},
+		{"same key twice under the same path", "files:\n  - {key: a, path: x}\n  - {key: a, path: x}\n", `key "a" is written to file name "x" more than once`},
+		{"same key twice with one default path", "files:\n  - {key: a}\n  - {key: a, uid: 1}\n", `key "a" is written to file name "a" more than once`},
 		{"duplicate path", "files:\n  - {key: a, path: x}\n  - {key: b, path: x}\n", "used by keys"},
 		{"duplicate via default path", "files:\n  - {key: a}\n  - {key: b, path: a}\n", "used by keys"},
 		{"path with slash", "files:\n  - {key: a, path: sub/file}\n", "path"},
@@ -254,6 +271,38 @@ func TestPlanMissingKey(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), canary) {
 		t.Errorf("error leaks value: %v", err)
+	}
+}
+
+func TestPlanSharedKeyMissing(t *testing.T) {
+	m, err := config.ParseMap([]byte("files:\n  - {key: shared, path: a}\n  - {key: shared, path: b}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = m.Plan(secrets("other", canary))
+	if err == nil {
+		t.Fatal("Plan succeeded, want error")
+	}
+	if !strings.Contains(err.Error(), `"shared"`) {
+		t.Errorf("error %q does not name the missing key", err)
+	}
+	if strings.Contains(err.Error(), canary) {
+		t.Errorf("error leaks value: %v", err)
+	}
+}
+
+func TestPlanSharedKeyCopiesAreIndependent(t *testing.T) {
+	m, err := config.ParseMap([]byte("files:\n  - {key: a, path: x}\n  - {key: a, path: y}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := m.Plan(secrets("a", "abc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan.Entries[0].File.Data[0] = 'X'
+	if got := string(plan.Entries[1].File.Data); got != "abc" {
+		t.Errorf("second file shares the first file's buffer: %q", got)
 	}
 }
 
