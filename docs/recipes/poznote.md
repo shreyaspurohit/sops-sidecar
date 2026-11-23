@@ -29,7 +29,7 @@ There are three ways to hand a secret to a container:
 | A `_FILE` variable or `file://` prefix pointing at a secret file | Only in the file. `docker inspect` shows the path. | postgres, authentik |
 | A variable exported by a process inside the container | Only in that process and its children | This recipe |
 
-poznote's configuration code reads a setting from `$_ENV`, then from `getenv()`, then falls back to a default. Only the third method keeps the value out of `docker inspect` for it. Support for `_FILE` variables is requested in [poznote#1814](https://github.com/timothepoznanski/Poznote/issues/1814). Once poznote supports them, the secret files can be passed directly and the wrapper is no longer needed.
+poznote's configuration code reads a setting from `$_ENV`, then from `getenv()`, then falls back to a default. Only the third method keeps the value out of `docker inspect` for it. Support for `_FILE` variables is requested in [a poznote discussion](https://github.com/timothepoznanski/Poznote/discussions/1815). Once poznote supports them, the secret files can be passed directly and the wrapper is no longer needed.
 
 ## How the wrapper works
 
