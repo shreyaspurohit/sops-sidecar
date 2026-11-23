@@ -120,4 +120,6 @@ When the VPN provider changes an address or a key:
 
 ## Reboots
 
-Docker restarts containers after a host reboot without waiting for `depends_on`. See [reboot ordering](../reboot-ordering.md) for how to start the stack in order at boot.
+Docker restarts containers after a host reboot without waiting for `depends_on`. In a reboot test, gluetun exited while its secret file was missing (`endpoint IP is not set`), and `restart: always` brought it back once the sidecar had written the file.
+
+Services with `network_mode: service:gluetun` need one more step. A gluetun restart leaves them on its old network namespace with no network, and they need a restart after gluetun is healthy. See [services that share another container's network](../reboot-ordering.md#services-that-share-another-containers-network) and the [boot script](scripts/boot-stacks.sh).
