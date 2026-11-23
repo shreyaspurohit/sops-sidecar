@@ -79,17 +79,32 @@ In every case, finish with `sudo chmod 0400 age.key`. Check with `ls -ln age.key
 
 ## Start the stack at boot
 
-Docker restarts containers after a reboot but ignores `depends_on` (see [reboot ordering](../reboot-ordering.md)). To start the stack at boot, add a boot task:
+Docker restarts containers after a reboot but ignores `depends_on` (see [reboot ordering](../reboot-ordering.md)). A boot task runs a script as root after DSM starts.
 
-1. Open **Control Panel > Task Scheduler**.
-2. Choose **Create > Triggered Task > User-defined script**.
-3. User: `root`. Event: `Boot-up`.
-4. In the task settings, set the user-defined script to:
+**One stack.** The script is a single command:
 
 ```sh
 docker compose -f /volume1/<path>/compose.yaml up -d
 ```
 
-**Several stacks, or services behind a VPN container.** [boot-stacks.sh](scripts/boot-stacks.sh) waits for Docker, starts each stack with `docker compose up -d`, waits for the VPN container to be healthy, and restarts the services that share its network (see [reboot ordering](../reboot-ordering.md#services-that-share-another-containers-network)). Copy it to a root-only location, for example a project folder, edit the paths and names, and run `sudo chown 0:0 boot-stacks.sh && sudo chmod 0700 boot-stacks.sh`. The task's user-defined script is then `sh /volume1/<path>/boot-stacks.sh`.
+**Several stacks, or services behind a VPN container.** Use [boot-stacks.sh](scripts/boot-stacks.sh). It waits for Docker, starts each stack with `docker compose up -d`, waits for the VPN container to be healthy, and restarts the services that share its network (see [reboot ordering](../reboot-ordering.md#services-that-share-another-containers-network)).
+
+1. Copy it to a folder only root can change, for example a project folder.
+2. Edit the paths, the container name and the service names.
+3. Run `sudo chown 0:0 boot-stacks.sh && sudo chmod 0700 boot-stacks.sh`. The task runs it as root, so only root may be able to change it.
 
 The script was tested with the task's **Run** action. The joined services restarted and rejoined the network container's network.
+
+**Create the task:**
+
+1. Open **Control Panel > Task Scheduler**.
+2. Choose **Create > Triggered Task > User-defined script**.
+3. On the **General** tab:
+   - **Task:** a name, for example `Start compose stacks`.
+   - **User:** `root`. Docker needs root, and the task runs without a login.
+   - **Event:** `Boot-up`.
+   - **Enabled:** ticked.
+4. On the **Task Settings** tab:
+   - **Send run details by email**, with **Send run details only when the script terminates abnormally**, reports a failure. `boot-stacks.sh` exits with an error when Docker or the VPN container is not ready within 5 minutes.
+   - **User-defined script:** the single command above, or `sh /volume1/<path>/boot-stacks.sh`.
+5. Choose **OK**. To try it without rebooting, select the task and choose **Run**.
