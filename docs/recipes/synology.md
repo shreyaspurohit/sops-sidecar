@@ -90,6 +90,6 @@ Docker restarts containers after a reboot but ignores `depends_on` (see [reboot 
 docker compose -f /volume1/<path>/compose.yaml up -d
 ```
 
-**Several stacks, or services behind a VPN container.** [boot-stacks.sh](boot-stacks.sh) waits for Docker, starts each stack with `docker compose up -d`, waits for the VPN container to be healthy, and restarts the services that share its network (see [reboot ordering](../reboot-ordering.md#services-that-share-another-containers-network)). Copy it to a root-only location, for example a project folder, edit the paths and names, and run `sudo chown 0:0 boot-stacks.sh && sudo chmod 0700 boot-stacks.sh`. The task's user-defined script is then `sh /volume1/<path>/boot-stacks.sh`.
+**Several stacks, or services behind a VPN container.** [boot-stacks.sh](scripts/boot-stacks.sh) waits for Docker, starts each stack with `docker compose up -d`, waits for the VPN container to be healthy, and restarts the services that share its network (see [reboot ordering](../reboot-ordering.md#services-that-share-another-containers-network)). Copy it to a root-only location, for example a project folder, edit the paths and names, and run `sudo chown 0:0 boot-stacks.sh && sudo chmod 0700 boot-stacks.sh`. The task's user-defined script is then `sh /volume1/<path>/boot-stacks.sh`.
 
 The script was tested with the task's **Run** action. The joined services restarted and rejoined the network container's network.

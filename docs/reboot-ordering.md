@@ -60,6 +60,6 @@ A service with `network_mode: service:<name>` joins that container's network nam
 
 With sops-sidecar, this happens at boot: the network container starts before its sidecar, exits because its secret file is missing, and Docker restarts it. In a test with gluetun, gluetun recovered once the sidecar had written its file, while a service joined to it kept running with no `eth0`. `docker compose up -d` left that service as it was, and `docker compose restart <service>` brought its network back.
 
-A boot hook therefore restarts the joined services after the network container is healthy. The [boot script](recipes/boot-stacks.sh) does this.
+A boot hook therefore restarts the joined services after the network container is healthy. The [boot script](recipes/scripts/boot-stacks.sh) does this.
 
 On a NAS without systemd access, use its scheduler. The [Synology recipe](recipes/synology.md) describes the Task Scheduler equivalent.
