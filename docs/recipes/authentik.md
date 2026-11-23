@@ -121,7 +121,7 @@ Then remove `PG_PASS`, `AUTHENTIK_SECRET_KEY` and `AUTHENTIK_EMAIL__PASSWORD` fr
 
 ## Create the SOPS file from a running install
 
-Take the values from the running authentik container, not from the text of `.env`. Compose treats `$` in `.env` as the start of a variable, and a password written with `$$` escapes reaches the container with single `$`. Copying the `.env` text would store a different password.
+Take the values from the running authentik container. Compose interpolates `.env` before the containers see it, so the container's environment is the exact value authentik uses.
 
 The pipeline below runs on a workstation with the age and sops versions in `.tool-versions` and `jq`. It reads the container's environment over SSH, keeps only the three values, and encrypts them for two recipients: a personal key and this stack's key. The values stay in the pipe and are not written in plain text on either machine.
 
