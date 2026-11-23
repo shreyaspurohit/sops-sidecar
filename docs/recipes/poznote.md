@@ -14,6 +14,7 @@ One run on a Linux x86_64 host (kernel 4.4) with Docker 24.0.2 and Compose v2.20
 | The secret files in the poznote container | Owned `65532:65532`, mode `0400`, on a read-only tmpfs mount |
 | The values in poznote's main process (supervisord) after the wrapper ran | Both present, with the same lengths as the files |
 | `POZNOTE_OIDC_*` in `docker inspect` of poznote | None |
+| Signing in to poznote through an OIDC provider (authentik) | Works |
 | poznote's PHP code, through nginx and php-fpm, reading both values (run with dummy values) | Reads them, including a value with a `$` |
 | A secret file missing when the container starts | The wrapper exits with status 1 before poznote starts |
 | Editing the SOPS file, `docker compose kill -s HUP secrets`, then `docker compose restart webserver` (run with dummy values) | poznote uses the new value after the restart. After the HUP alone, it keeps the old one. |
@@ -28,7 +29,7 @@ There are three ways to hand a secret to a container:
 | A `_FILE` variable or `file://` prefix pointing at a secret file | Only in the file. `docker inspect` shows the path. | postgres, authentik |
 | A variable exported by a process inside the container | Only in that process and its children | This recipe |
 
-poznote's configuration code reads a setting from `$_ENV`, then from `getenv()`, then falls back to a default. Only the third method keeps the value out of `docker inspect` for it.
+poznote's configuration code reads a setting from `$_ENV`, then from `getenv()`, then falls back to a default. Only the third method keeps the value out of `docker inspect` for it. Support for `_FILE` variables is requested in [poznote#1814](https://github.com/timothepoznanski/Poznote/issues/1814). Once poznote supports them, the wrapper can be replaced with `POZNOTE_OIDC_CLIENT_SECRET_FILE` and the like.
 
 ## How the wrapper works
 
