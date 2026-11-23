@@ -26,9 +26,49 @@ One run on a Linux x86_64 host (kernel 4.4) with Docker 24.0.2 and Compose v2.20
 
 - **postgres** (`postgres:*-alpine`) reads the password as its `postgres` user, uid 70, through `POSTGRES_PASSWORD_FILE`.
 - **authentik's server and worker** run as the image's `authentik` user, uid 1000. They read each setting from a file through authentik's `file://` prefix, which its [configuration docs](https://docs.goauthentik.io/install-config/configuration/) support for every setting.
-- **The sidecar runs as root with only `CHOWN` and `FOWNER`.** It has to give files to two different owners, and changing a file's owner needs `CAP_CHOWN`, which Docker grants only to root. This is the same setup as [examples/postgres](../../examples/postgres), so `age.key` is owned by `0:0` with mode `0400`.
+- **The sidecar runs as root with only `CHOWN` and `FOWNER`.** It has to give files to two different owners, and changing a file's owner needs `CAP_CHOWN`, which Docker grants only to root. This is the same setup as [examples/postgres](../../examples/postgres).
 - **The map file writes `pg_pass` twice**, once for each owner (a key in several entries needs sops-sidecar v0.2.0 or later).
-- **The `secrets` volume** is tmpfs with mode `0711`. The containers can open a file by name, but they can't list the folder.
+- **The `secrets` volume** is tmpfs, so the decrypted values exist only in memory.
+
+## Where the numbers come from
+
+**uid 70, the `postgres` user.** The `postgres:*-alpine` images create a `postgres` user with uid and gid 70. The container starts as root and switches to that user before reading `POSTGRES_PASSWORD_FILE`, so the file must belong to 70. To check an image:
+
+```sh
+docker run --rm --entrypoint id postgres:16-alpine postgres
+# uid=70(postgres) gid=70(postgres) groups=70(postgres),70(postgres)
+```
+
+Other postgres variants, such as the Debian-based images without `-alpine`, may use another uid, so check the image in use.
+
+**uid 1000, the `authentik` user.** The `goauthentik/server` image sets `USER 1000`, so the server and the worker run as uid and gid 1000:
+
+```sh
+docker run --rm --entrypoint id ghcr.io/goauthentik/server:2026.8.6
+# uid=1000(authentik) gid=1000(authentik) groups=1000(authentik)
+```
+
+For a running stack, `docker exec <container> id` shows the same.
+
+**`age.key` owned by `0:0`, mode `0400`.**
+- **Owner 0:** the sidecar runs as uid 0 (`user: "0:0"`). With `cap_drop: [ALL]` it has no `CAP_DAC_OVERRIDE` or `CAP_DAC_READ_SEARCH`, the capabilities that let root read any file. Inside the container, root reads a file only through its normal owner, group and mode bits, so the key must belong to uid 0.
+- **Mode `0400`:** read for the owner, nothing for anyone else. The sidecar only reads the key, so the owner needs no write bit. Other users on the host get no access.
+
+**Secret files, mode `0400`.** Each file belongs to the one user that reads it (70 or 1000), and only that user can read it. Nothing writes to them except the sidecar, which replaces them as root.
+
+**The volume options, `o: "size=1m,mode=0711,nosuid,nodev,noexec"`.**
+
+| Option | Meaning | Why |
+|---|---|---|
+| `size=1m` | The tmpfs holds at most 1 MiB, in memory | Secrets are small. The limit stops a mistake from filling the host's memory. |
+| `mode=0711` | The folder's owner (root, the sidecar) can read, write and list it. Everyone else can only pass through it (`x`). | postgres and authentik can open a file whose name they know, such as `/run/secrets/pg_pass`, but they cannot list the folder to find the other secrets. `ls /run/secrets` in the authentik container gives "Permission denied". |
+| `nosuid` | setuid and setgid bits on files are ignored | No file there can grant extra privileges |
+| `nodev` | Device files do not work | No file there can open a device |
+| `noexec` | Files cannot be run as programs | The folder holds data, never code |
+
+There is no `uid=` option, so the folder belongs to root, which is the user the sidecar runs as. The [gluetun recipe](gluetun.md) runs the sidecar as uid 65532 instead and adds `uid=65532,gid=65532`.
+
+On the tested host, `/proc/mounts` in the authentik container showed only `ro,relatime,size=1024k,mode=711` for the read-only mount. `nosuid,nodev,noexec` did not appear there. The secret files are created with mode `0400`, so none of them is executable or setuid.
 
 ## Map file
 
@@ -59,7 +99,7 @@ files:
 
 ## Compose changes
 
-These are the changes to authentik's standard Compose file. Other settings stay as they are.
+These are the changes to authentik's standard Compose file: a new `secrets` service, additions to `postgresql`, `server` and `worker`, and a new `secrets` volume. Add the lines below to the existing services. Each service keeps its other settings: image, command, ports, other volumes and other environment variables.
 
 ```yaml
 services:
@@ -93,7 +133,20 @@ services:
       secrets:
         condition: service_healthy
 
-  server:   # the worker gets the same changes
+  server:
+    environment:
+      AUTHENTIK_POSTGRESQL__PASSWORD: file:///run/secrets/pg_pass_authentik
+      AUTHENTIK_SECRET_KEY: file:///run/secrets/secret_key
+      AUTHENTIK_EMAIL__PASSWORD: file:///run/secrets/email_password
+    volumes:
+      - secrets:/run/secrets:ro
+    depends_on:
+      secrets:
+        condition: service_healthy
+      postgresql:
+        condition: service_healthy
+
+  worker:
     environment:
       AUTHENTIK_POSTGRESQL__PASSWORD: file:///run/secrets/pg_pass_authentik
       AUTHENTIK_SECRET_KEY: file:///run/secrets/secret_key
