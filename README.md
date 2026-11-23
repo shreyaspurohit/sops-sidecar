@@ -240,6 +240,7 @@ Exit codes: `0` success (`health`: ready), `1` failure (config, inputs, decrypt,
 - [Comparison with other tools](docs/comparison.md)
 - [Reboot ordering](docs/reboot-ordering.md)
 - [Recipe: gluetun with its WireGuard config from sops-sidecar](docs/recipes/gluetun.md)
+- [Recipe: authentik with its secrets from sops-sidecar](docs/recipes/authentik.md)
 - [Architecture](ARCHITECTURE.md) and [decisions](DECISIONS.md)
 - [Contributing](CONTRIBUTING.md) and [changelog](CHANGELOG.md)
 
