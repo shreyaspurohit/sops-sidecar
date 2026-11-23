@@ -242,7 +242,8 @@ Exit codes: `0` success (`health`: ready), `1` failure (config, inputs, decrypt,
 - [Reboot ordering](docs/reboot-ordering.md)
 - [Recipe: gluetun with its WireGuard config from sops-sidecar](docs/recipes/gluetun.md)
 - [Recipe: authentik with its secrets from sops-sidecar](docs/recipes/authentik.md)
-- [Recipe: poznote, an app that reads secrets only from environment variables](docs/recipes/poznote.md)
+- [Recipe: poznote with its OIDC credentials from sops-sidecar](docs/recipes/poznote.md)
+- [Recipe: apps that read secrets only from environment variables](docs/recipes/env-wrapper.md)
 - [Architecture](ARCHITECTURE.md) and [decisions](DECISIONS.md)
 - [Contributing](CONTRIBUTING.md) and [changelog](CHANGELOG.md)
 

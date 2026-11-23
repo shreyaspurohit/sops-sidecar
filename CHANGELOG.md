@@ -9,7 +9,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Recipe for running gluetun with its WireGuard config file from sops-sidecar.
 - README note on values that contain `$`: Compose needs `$$` in `.env`, and the SOPS file holds the single `$`.
 - Boot script for several stacks and for services behind a VPN container, and a section in the reboot-ordering doc on services that share another container's network.
-- Recipe for poznote, an image that reads secrets only from environment variables, using an entrypoint wrapper that exports the secret files.
+- Recipe for poznote 6.157.0 and later, which reads its OIDC credentials from `_FILE` variables.
+- Recipe for apps that read secrets only from environment variables, using an entrypoint wrapper that exports the secret files.
 - Recipe for running authentik with its database password, secret key and email password from sops-sidecar, including one key written to two files.
 - The NAS recipe sets the Compose project name, so `docker compose` run from a shell updates a project created in the NAS's container UI.
 

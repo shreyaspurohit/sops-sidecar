@@ -1,110 +1,77 @@
-# Recipe: poznote, an app that reads secrets only from environment variables
+# Recipe: poznote with its OIDC credentials from sops-sidecar
 
-[poznote](https://github.com/timothepoznanski/poznote) is a note-taking app. It reads its OIDC client ID and client secret from the environment variables `POZNOTE_OIDC_CLIENT_ID` and `POZNOTE_OIDC_CLIENT_SECRET`. It has no `_FILE` variant and no `file://` prefix, so a secret file alone cannot reach it.
+[poznote](https://github.com/timothepoznanski/poznote) is a note-taking app. From version 6.157.0, every setting it reads through its configuration helper also accepts a `<NAME>_FILE` variable that points at a file. This recipe gives poznote its OIDC client ID and client secret as files from sops-sidecar, so `docker inspect` shows only the paths.
 
-This recipe covers any image like that. A short entrypoint wrapper reads the secret files that sops-sidecar wrote, exports them as environment variables inside the container, and then starts the image as usual. The app sees the variables it expects, and `docker inspect` shows only the wrapper script, which holds file paths and no values.
+Versions before 6.157.0 read these settings only from environment variables. The [env-wrapper recipe](env-wrapper.md) covers that case for any image.
 
 ## What has been tested
 
-One run on a Linux x86_64 host (kernel 4.4) with Docker 24.0.2 and Compose v2.20.1, using the released sops-sidecar v0.2.0 image and poznote 6.156.2 (`ghcr.io/timothepoznanski/poznote:6`).
+One run on a Linux x86_64 host (kernel 4.4) with Docker 24.0.2 and Compose v2.20.1, using the released sops-sidecar v0.2.0 image and poznote 6.158.0.
 
 | Check | Result |
 |---|---|
-| The sidecar goes healthy before poznote starts | Works |
-| The secret files in the poznote container | Owned `65532:65532`, mode `0400`, on a read-only tmpfs mount |
-| The values in poznote's main process (supervisord) after the wrapper ran | Both present, with the same lengths as the files |
-| `POZNOTE_OIDC_*` in `docker inspect` of poznote | None |
+| The secret files in the poznote container | Owned `82:82`, mode `0400`, on a read-only tmpfs mount |
+| `POZNOTE_OIDC_*` in `docker inspect` of poznote | Only the two `_FILE` paths |
 | Signing in to poznote through an OIDC provider (authentik) | Works |
 | poznote's PHP code, through nginx and php-fpm, reading both values (run with dummy values) | Reads them, including a value with a `$` |
-| A secret file missing when the container starts | The wrapper exits with status 1 before poznote starts |
-| Editing the SOPS file, `docker compose kill -s HUP secrets`, then `docker compose restart webserver` (run with dummy values) | poznote uses the new value after the restart. After the HUP alone, it keeps the old one. |
+| Editing the SOPS file, then `docker compose kill -s HUP secrets` (run with dummy values) | The next web request reads the new value, with no restart |
+| poznote started before its sidecar, with the secrets volume empty (what a reboot does) | poznote refuses to start, Docker restarts it, and it runs once the sidecar has written the files |
+| A secret file that `www-data` cannot read (owned `65532`, mode `0400`) | poznote refuses to start and names the variable and the path |
+| `POZNOTE_OIDC_CLIENT_SECRET` and `POZNOTE_OIDC_CLIENT_SECRET_FILE` both set | poznote refuses to start |
 
-## Why a wrapper is needed
+## How it fits together
 
-There are three ways to hand a secret to a container:
+- **poznote reads the files as `www-data`, uid 82.** PHP runs as that user, and poznote's startup script checks each `_FILE` path as that user before starting. If a file is missing or unreadable, it logs `Poznote does not start with an empty secret` and exits.
+- **The sidecar runs as root with only `CHOWN` and `FOWNER`.** It writes each file owned by uid 82, and changing a file's owner needs `CAP_CHOWN`, which Docker grants only to root. This is the same setup as the [authentik recipe](authentik.md), so `age.key` is owned by `0:0` with mode `0400`.
+- **The `secrets` volume** is tmpfs with mode `0711`. poznote can open a file by name but cannot list the folder. The [authentik recipe](authentik.md#where-the-numbers-come-from) explains each volume option.
+- **poznote reads a file on each web request**, so a reloaded value applies to the next request.
 
-| Method | Where the value ends up | Example |
-|---|---|---|
-| `environment:` or `env_file:` | In the container's configuration, so `docker inspect` shows it | poznote's standard setup |
-| A `_FILE` variable or `file://` prefix pointing at a secret file | Only in the file. `docker inspect` shows the path. | postgres, authentik |
-| A variable exported by a process inside the container | Only in that process and its children | This recipe |
+To check the uid in the image:
 
-poznote's configuration code reads a setting from `$_ENV`, then from `getenv()`, then falls back to a default. Only the third method keeps the value out of `docker inspect` for it. Support for `_FILE` variables is requested in [a poznote discussion](https://github.com/timothepoznanski/Poznote/discussions/1815). Once poznote supports them, the secret files can be passed directly and the wrapper is no longer needed.
+```sh
+docker run --rm --entrypoint id ghcr.io/timothepoznanski/poznote:6.158.0 www-data
+# uid=82(www-data) gid=82(www-data) groups=82(www-data),82(www-data)
+```
 
-## How the wrapper works
+poznote's error message names uid 1000 for its rootless image. With that image, use 1000 in the map file.
+
+## Map file
+
+`secrets.map.yaml`:
 
 ```yaml
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        set -e
-        POZNOTE_OIDC_CLIENT_ID=$$(cat /run/secrets/oidc_client_id)
-        POZNOTE_OIDC_CLIENT_SECRET=$$(cat /run/secrets/oidc_client_secret)
-        export POZNOTE_OIDC_CLIENT_ID POZNOTE_OIDC_CLIENT_SECRET
-        exec docker-php-entrypoint "$$@"
-      - --
-    command: ["/bin/sh", "-c", "/usr/local/bin/init.sh && exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"]
+# uid/gid 82 is www-data in the poznote image, the user PHP runs as.
+files:
+  - key: oidc_client_id
+    uid: 82
+    gid: 82
+    mode: "0400"
+  - key: oidc_client_secret
+    uid: 82
+    gid: 82
+    mode: "0400"
 ```
 
-Line by line:
+## Compose changes
 
-- **`/bin/sh -c '<script>'`** runs the script with the image's own shell, so nothing is added to the image.
-- **`set -e`** stops the script at the first failing command. If a secret file is missing or unreadable, `cat` fails, the container exits with status 1, and poznote never starts with an empty secret.
-- **`VAR=$$(cat /run/secrets/...)`** reads each file into a variable. `$(...)` drops trailing newlines. The `$$` is Compose's escape for a literal `$`. Without it, Compose would try to fill in `$(...)` and `$@` itself when it reads the file.
-- **`export`** passes the variables on to every program the script starts.
-- **`exec docker-php-entrypoint "$$@"`** replaces the shell with the image's original entrypoint and hands it the container's command. `exec` keeps the process as PID 1, so Docker's stop signals reach the app directly.
-- **`--`** is the first argument after the script, and `sh -c` uses it as the script's name (`$0`). The words of `command:` then become `$1`, `$2` and so on, which is what `"$@"` passes on.
-- **`command:` repeats the image's start command.** Setting `entrypoint:` in Compose also clears the image's default command, so the original has to be written out again.
-
-### Where the entrypoint and command come from
-
-Read them from the image:
-
-```sh
-docker inspect -f '{{json .Config.Entrypoint}} {{json .Config.Cmd}}' ghcr.io/timothepoznanski/poznote:6
-# ["docker-php-entrypoint"] ["/bin/sh","-c","/usr/local/bin/init.sh && exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"]
-```
-
-The wrapper ends with the first part and `command:` holds the second.
-
-### Why PHP sees the variables
-
-The exported variables pass from the wrapper to supervisord, which starts nginx, php-fpm and poznote's workers. php-fpm gives its workers an empty environment unless `clear_env = no` is set. poznote's image sets it in `docker.conf`, so the workers keep the variables:
-
-```sh
-docker run --rm --entrypoint grep ghcr.io/timothepoznanski/poznote:6 -r clear_env /usr/local/etc/php-fpm.d/
-# /usr/local/etc/php-fpm.d/www.conf.default:;clear_env = no
-# /usr/local/etc/php-fpm.d/docker.conf:clear_env = no
-```
-
-### Where the values remain visible
-
-The values live in the environment of poznote's processes. Inside the container, root can read them from `/proc/<pid>/environ`. They stay out of the container's configuration, `docker inspect` and the compose file.
-
-## Permissions
-
-The sidecar runs as the image's default user, uid 65532 (the distroless `nonroot` user), with every capability dropped. It writes each file owned by itself with mode `0400`. poznote's image sets no `USER`, so the wrapper runs as root with Docker's default capabilities, which include `CAP_DAC_OVERRIDE`. That lets it read a file owned by another uid, so no map file and no `chown` are needed. `age.key` is owned by `65532:65532` with mode `0400` for the same reason as in the [gluetun recipe](gluetun.md).
-
-The `secrets` volume uses `uid=65532,gid=65532` so the non-root sidecar can write to it. The [authentik recipe](authentik.md#where-the-numbers-come-from) explains the other volume options.
-
-## Compose file
-
-The changes to poznote's standard Compose file are the `secrets` service, the wrapper, the `secrets` volume and the `depends_on`. The service keeps its other settings.
+These are the changes to poznote's standard Compose file: a new `secrets` service, additions to `webserver`, and a new `secrets` volume. The service keeps its other settings.
 
 ```yaml
 services:
   secrets:
     image: ghcr.io/shreyaspurohit/sops-sidecar:0.2.0@sha256:a59645a3fbfea2621d54dd79635d2535005acbc22f2d2b68b8c49568dbabaded
+    user: "0:0"
     read_only: true
     network_mode: none
     cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
     volumes:
       - /path/outside/project/age.key:/config/age.key:ro
       - ./secrets.sops.yaml:/config/secrets.sops.yaml:ro
+      - ./secrets.map.yaml:/config/secrets.map.yaml:ro
       - secrets:/secrets
     healthcheck:
       test: ["CMD", "/sops-sidecar", "health"]
@@ -113,29 +80,14 @@ services:
       retries: 15
 
   webserver:
-    image: ghcr.io/timothepoznanski/poznote:6
-    restart: unless-stopped
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        set -e
-        POZNOTE_OIDC_CLIENT_ID=$$(cat /run/secrets/oidc_client_id)
-        POZNOTE_OIDC_CLIENT_SECRET=$$(cat /run/secrets/oidc_client_secret)
-        export POZNOTE_OIDC_CLIENT_ID POZNOTE_OIDC_CLIENT_SECRET
-        exec docker-php-entrypoint "$$@"
-      - --
-    command: ["/bin/sh", "-c", "/usr/local/bin/init.sh && exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"]
-    env_file:
-      - .env
+    environment:
+      POZNOTE_OIDC_CLIENT_ID_FILE: /run/secrets/oidc_client_id
+      POZNOTE_OIDC_CLIENT_SECRET_FILE: /run/secrets/oidc_client_secret
     volumes:
-      - ./data:/var/www/html/data
       - secrets:/run/secrets:ro
     depends_on:
       secrets:
         condition: service_healthy
-    security_opt:
-      - no-new-privileges:true
 
 volumes:
   secrets:
@@ -143,14 +95,14 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
-      o: "size=1m,mode=0711,uid=65532,gid=65532,nosuid,nodev,noexec"
+      o: "size=1m,mode=0711,nosuid,nodev,noexec"
 ```
 
-Then remove `POZNOTE_OIDC_CLIENT_ID` and `POZNOTE_OIDC_CLIENT_SECRET` from `.env`. No map file is needed. Each top-level key of the SOPS file becomes `/run/secrets/<key>`.
+Then remove `POZNOTE_OIDC_CLIENT_ID` and `POZNOTE_OIDC_CLIENT_SECRET` from `.env`. poznote refuses to start when a setting and its `_FILE` form are both set.
 
-## Create the SOPS file from a running install
+## Create the SOPS file
 
-Take the values from the running container, as in the [authentik recipe](authentik.md#create-the-sops-file-from-a-running-install), and store them under the keys `oidc_client_id` and `oidc_client_secret`:
+From an install that has the values in `.env`, take them from the running container, as in the [authentik recipe](authentik.md#create-the-sops-file-from-a-running-install), and store them under the keys `oidc_client_id` and `oidc_client_secret`:
 
 ```sh
 age-keygen -pq -o stack-age.key
@@ -171,13 +123,14 @@ SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops decrypt --output-type json se
 
 ## Roll it out
 
-1. Copy `stack-age.key` to the path the compose file mounts as `age.key`, then run `sudo chown 65532:65532 age.key && sudo chmod 0400 age.key` there.
-2. Put `secrets.sops.yaml` in the project folder.
-3. Check that the sidecar can decrypt it:
+1. Copy `stack-age.key` to the path the compose file mounts as `age.key`, then run `sudo chown 0:0 age.key && sudo chmod 0400 age.key` there.
+2. Put `secrets.sops.yaml` and `secrets.map.yaml` in the project folder.
+3. Check that the sidecar can decrypt and plan both entries:
    ```sh
-   docker run --rm --read-only --network none --cap-drop ALL \
+   docker run --rm --user 0:0 --read-only --network none --cap-drop ALL --cap-add CHOWN --cap-add FOWNER \
      -v /path/outside/project/age.key:/config/age.key:ro \
      -v "$PWD/secrets.sops.yaml:/config/secrets.sops.yaml:ro" \
+     -v "$PWD/secrets.map.yaml:/config/secrets.map.yaml:ro" \
      ghcr.io/shreyaspurohit/sops-sidecar:0.2.0 check
    ```
    It lists `oidc_client_id` and `oidc_client_secret`.
@@ -185,25 +138,14 @@ SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops decrypt --output-type json se
 5. Sign in to poznote through the OIDC provider.
 6. Delete the workstation copy of `stack-age.key`.
 
-## Change a value
+**Moving from the env-wrapper setup.** The wrapper setup runs the sidecar as uid 65532 and creates the volume with `uid=65532,gid=65532`. Compose keeps an existing volume's options, so remove the volume before starting the new setup: `docker compose down`, then `docker volume rm <project>_secrets`, then `docker compose up -d`. The volume holds only the tmpfs copies, which the sidecar writes again. Change `age.key` to `0:0` as in step 1.
 
-poznote reads its environment once, when it starts, so a change needs a restart after the reload:
+## Change a value
 
 1. Run `sops edit secrets.sops.yaml` on the workstation.
 2. Copy the file onto the existing one on the host with `cat new > secrets.sops.yaml`, which rewrites it in place.
-3. Run `docker compose kill -s HUP secrets`. The sidecar logs `secrets written`.
-4. Run `docker compose restart webserver`. The wrapper runs again and reads the new files.
-
-## After an image update
-
-The wrapper repeats the image's start command. When the image changes, compare its command with the one in the compose file:
-
-```sh
-docker inspect -f '{{json .Config.Entrypoint}} {{json .Config.Cmd}}' ghcr.io/timothepoznanski/poznote:6
-```
-
-If either part differs, update the last line of the wrapper or `command:` to match.
+3. Run `docker compose kill -s HUP secrets`. The sidecar logs `secrets written`, and the next web request uses the new value.
 
 ## Reboots
 
-Docker restarts containers after a host reboot without waiting for `depends_on`. If poznote starts before the sidecar has written the files, the wrapper exits with status 1. See [reboot ordering](../reboot-ordering.md) for starting the stack in order at boot.
+Docker restarts containers after a host reboot without waiting for `depends_on`. poznote refuses to start until the sidecar has written the files, and its restart policy brings it up once they exist. See [reboot ordering](../reboot-ordering.md) for starting stacks in order at boot.
