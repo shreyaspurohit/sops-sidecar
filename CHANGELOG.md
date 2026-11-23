@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - Recipe for running gluetun with its WireGuard config file from sops-sidecar.
+- README note on values that contain `$`: Compose needs `$$` in `.env`, and the SOPS file holds the single `$`.
+- Recipe for running authentik with its database password, secret key and email password from sops-sidecar, including one key written to two files.
 - The NAS recipe sets the Compose project name, so `docker compose` run from a shell updates a project created in the NAS's container UI.
 
 ## [0.2.0] - 2026-11-19
