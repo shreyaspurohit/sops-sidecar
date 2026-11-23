@@ -123,6 +123,8 @@ Then remove `PG_PASS`, `AUTHENTIK_SECRET_KEY` and `AUTHENTIK_EMAIL__PASSWORD` fr
 
 Take the values from the running authentik container. Compose interpolates `.env` before the containers see it, so the container's environment is the exact value authentik uses.
 
+**Passwords that contain `$`.** In `.env`, a literal `$` is written `$$`, and Compose turns it back into `$` for the container. A SOPS value is written to its file byte for byte, so it must hold the single `$`. The pipeline below takes values from the container, so they are already unescaped. When typing a value into `sops edit` instead, write `$`, not `$$`.
+
 The pipeline below runs on a workstation with the age and sops versions in `.tool-versions` and `jq`. It reads the container's environment over SSH, keeps only the three values, and encrypts them for two recipients: a personal key and this stack's key. The values stay in the pipe and are not written in plain text on either machine.
 
 ```sh
